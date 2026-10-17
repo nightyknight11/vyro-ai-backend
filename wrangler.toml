@@ -1,4 +1,5 @@
 
-name = "vyro-ai-backend"
+name = "vyro-ai"
 main = "worker.js"
 compatibility_date = "2026-10-17"
+
