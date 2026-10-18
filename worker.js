@@ -20,11 +20,11 @@ button:active{transform:scale(.98)}
 .app{height:100dvh;display:flex;overflow:hidden}
 .sidebar{width:260px;flex-shrink:0;background:#141418;border-right:1px solid #292930;padding:17px 13px;display:flex;flex-direction:column;gap:10px;z-index:10}
 .brand{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;letter-spacing:-.6px;padding:8px 7px 17px}
-.logo.liquid-logo{position:relative;isolation:isolate;overflow:hidden;width:39px;height:39px;flex-shrink:0;border-radius:35%;background:radial-gradient(circle at 25% 17%,#fff 0%,#eee4ff 7%,transparent 30%),linear-gradient(145deg,#eee5ff,#b49aff 40%,#7547df 72%,#302047);border:1px solid #e6d9ff80;box-shadow:inset 0 2px 5px #ffffffa0,inset -5px -7px 12px #30205270,0 0 25px #9870ff35;animation:liquidGlow 4s ease-in-out infinite}
-.liquid-orb{position:absolute;inset:13%;border-radius:42% 58% 63% 37% / 43% 38% 62% 57%;background:radial-gradient(ellipse at 28% 20%,#fff 0%,#eee5ff 9%,#c7adff 26%,transparent 49%),linear-gradient(145deg,#d8c5ff,#9769ff 55%,#5330a9);box-shadow:inset 3px 4px 7px #ffffffa0,inset -4px -5px 8px #42258e80,0 0 14px #c6a9ff50;animation:liquidMorph 5s ease-in-out infinite}
+.logo.liquid-logo{position:relative;isolation:isolate;overflow:hidden;width:39px;height:39px;flex-shrink:0;border-radius:35%;background:radial-gradient(circle at 25% 17%,#fff 0%,#eee4ff 7%,transparent[...]
+.liquid-orb{position:absolute;inset:13%;border-radius:42% 58% 63% 37% / 43% 38% 62% 57%;background:radial-gradient(ellipse at 28% 20%,#fff 0%,#eee5ff 9%,#c7adff 26%,transparent 49%),linear-gradient(14[...]
 .liquid-orb:before{content:"";position:absolute;width:40%;height:18%;top:17%;left:14%;border-radius:50%;background:#fff;filter:blur(2px);opacity:.85;transform:rotate(-35deg)}
 .liquid-orb:after{content:"";position:absolute;width:28%;height:28%;right:12%;bottom:16%;border-radius:50%;background:#d9c7ff90;filter:blur(3px)}
-@keyframes liquidMorph{0%,100%{border-radius:42% 58% 63% 37% / 43% 38% 62% 57%;transform:rotate(0deg) scale(.93)}50%{border-radius:58% 42% 38% 62% / 57% 61% 39% 43%;transform:rotate(18deg) scale(1)}}
+@keyframes liquidMorph{0%,100%{border-radius:42% 58% 63% 37% / 43% 38% 62% 57%;transform:rotate(0deg) scale(.93)}50%{border-radius:58% 42% 38% 62% / 57% 61% 39% 43%;transform:rotate(18deg) scale(1)} }
 @keyframes liquidGlow{0%,100%{box-shadow:0 0 18px #9870ff25,inset 0 2px 5px #ffffffa0}50%{box-shadow:0 0 32px #9870ff70,inset 0 2px 8px #ffffffc0}}
 .brand .logo{display:grid;place-items:center}
 .new{width:100%;padding:13px;background:#1b1b22;border-color:#35353e;font-weight:650}
@@ -77,7 +77,7 @@ textarea{width:100%;resize:none;min-height:42px;max-height:170px;border:0;outlin
 .actions{display:flex;align-items:center;gap:8px}
 .actions button{border:0;color:#ccc;font-size:12px;border-radius:9px;padding:9px 11px}
 .actions button:hover{background:#2b2736}
-.send{margin-left:auto;min-width:40px;min-height:40px;display:grid;place-items:center;border-radius:13px!important;background:#c2b0ff!important;color:#17121f!important;font-weight:900;font-size:19px!important;box-shadow:0 3px 14px #a18aff22}
+.send{margin-left:auto;min-width:40px;min-height:40px;display:grid;place-items:center;border-radius:13px!important;background:#c2b0ff!important;color:#17121f!important;font-weight:900;font-size:19px}
 .send:hover{background:#d4c7ff!important}
 .note{text-align:center;font-size:10px;color:#737380;padding-top:10px}
 .studio{max-width:820px;margin:auto;padding:30px 22px}
@@ -92,7 +92,7 @@ textarea{width:100%;resize:none;min-height:42px;max-height:170px;border:0;outlin
 .status{color:#cbbdff;font-size:12px;min-height:20px;margin-top:12px;overflow-wrap:anywhere;line-height:1.6}
 .overlay{position:fixed;inset:0;background:#08080bdc;backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:18px;z-index:20;overflow:auto;animation:overlayIn .25s ease both}
 @keyframes overlayIn{from{opacity:0}to{opacity:1}}
-.card{width:min(420px,100%);background:linear-gradient(155deg,#1c1b23,#121216 75%);border:1px solid #35323f;border-radius:25px;padding:30px;box-shadow:0 24px 90px #0008;margin:auto;animation:cardIn .35s cubic-bezier(.2,.8,.2,1) both}
+.card{width:min(420px,100%);background:linear-gradient(155deg,#1c1b23,#121216 75%);border:1px solid #35323f;border-radius:25px;padding:30px;box-shadow:0 24px 90px #0008;margin:auto;animation:cardIn .3s ease both}
 @keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 .card .brand{justify-content:center;font-size:21px;padding:5px 0 16px}
 .card h2{text-align:center;font-size:27px;letter-spacing:-1px;margin:12px 0 8px}
@@ -574,7 +574,7 @@ init();
 })();
 </script>
 </body>
-</html>`;
+</html>`
 
 function json(data,status=200){
   return new Response(JSON.stringify(data),{
@@ -719,4 +719,59 @@ export default {
       log("image.model_http_error",{status:result.status,details:detail.slice(0,1200)});
       return json({error:"Workers AI image request failed.",details:detail.slice(0,1200)||("Model returned HTTP "+result.status+"."),requestId},502);
      }
-     const contentType=result.headers.get("Content-Type")||
+     // Safely read content type
+     const contentType = (result.headers.get("Content-Type") || "").toLowerCase();
+     if(contentType.startsWith('image/')){
+      const buf = await result.arrayBuffer();
+      log('image.model_success',{contentType});
+      return imageResponse(buf, contentType);
+     }
+     if(contentType.includes('application/json')){
+      const d = await result.json().catch(()=> ({}));
+      const b64 = typeof d.image === 'string' ? d.image : typeof d.data === 'string' ? d.data : typeof d.image_base64 === 'string' ? d.image_base64 : null;
+      if(b64){
+       const match = b64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
+       const mime = match ? match[1] : 'image/png';
+       const raw = match ? match[2] : b64;
+       const binary = Uint8Array.from(atob(raw), c=>c.charCodeAt(0));
+       return imageResponse(binary, mime);
+      }
+      // No usable image field in JSON
+      return json({error:'Model returned JSON but no image data',details:d,requestId},502);
+     }
+     // Unexpected content-type
+     const raw = await result.text().catch(()=>"");
+     return json({error:'Unexpected image response ('+(contentType||'unknown')+').',details:raw.slice(0,1200),requestId},502);
+    }else{
+     // result is not a Response object - may be a structured result
+     const b64 = result && (typeof result.image === 'string' ? result.image : typeof result.data === 'string' ? result.data : typeof result.image_base64 === 'string' ? result.image_base64 : null);
+     if(b64){
+      const match = b64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
+      const mime = match ? match[1] : 'image/png';
+      const raw = match ? match[2] : b64;
+      const binary = Uint8Array.from(atob(raw), c=>c.charCodeAt(0));
+      return imageResponse(binary, mime);
+     }
+     // Try other common shapes
+     if(result && typeof result.output === 'string'){
+      const rawB64 = result.output;
+      const match = rawB64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
+      const mime = match ? match[1] : 'image/png';
+      const raw = match ? match[2] : rawB64;
+      const binary = Uint8Array.from(atob(raw), c=>c.charCodeAt(0));
+      return imageResponse(binary, mime);
+     }
+     log('image.model_unexpected',{result});
+     return json({error:'Unexpected image model result',details:JSON.stringify(result).slice(0,1200),requestId},502);
+    }
+   }catch(e){
+    const details=e instanceof Error?e.message:String(e);
+    log('image.error',{details:details.slice(0,1200)});
+    console.error(JSON.stringify({service:"VYRO AI",requestId,event:"image.error",elapsedMs:Date.now()-started,details:details.slice(0,1200)}));
+    return json({error:"Image generation failed. Check Workers AI availability and limits.",details:details.slice(0,500),requestId},502);
+   }
+  }
+
+  return json({error:'Not found'},404);
+ }
+};
