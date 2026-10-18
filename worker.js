@@ -1,3 +1,8 @@
+// worker.js
+// Full Cloudflare Worker with UI embedded (HTML), Supabase auth client, image & chat endpoints,
+// robust Workers AI image handling, debug mode, and UI polish (sharp buttons, liquid logo).
+// Paste this entire file into your Cloudflare Worker and deploy.
+
 const HTML = String.raw`<!doctype html>
 <html lang="en">
 <head>
@@ -7,103 +12,105 @@ const HTML = String.raw`<!doctype html>
 <title>VYRO AI</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root{color-scheme:dark;--bg:#101014;--panel:#19191f;--line:#303039;--text:#f5f5f7;--muted:#a1a1ad;--purple:#b5a0ff;--purple2:#8866f5}
+:root{color-scheme:dark;--bg:#101014;--panel:#19191f;--line:#303039;--text:#f5f5f7;--muted:#a1a1ad;--accent:#8b6bff;--accent-strong:#a18aff}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 button,input,textarea{font:inherit}
 button{cursor:pointer;color:inherit}
 button:disabled{opacity:.55;cursor:wait}
-button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--purple);outline-offset:3px}
-button{border:1px solid var(--line);background:transparent;border-radius:12px;padding:10px;text-align:left;transition:background .2s,border-color .2s,transform .2s,box-shadow .2s}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent-strong);outline-offset:3px}
+/* Sharp corners, human-made look */
+button{border:1px solid var(--line);background:transparent;border-radius:0;padding:10px;text-align:left;transition:background .18s,border-color .18s,transform .12s,box-shadow .18s}
 button:hover{background:#27242f;border-color:#494452}
-button:active{transform:scale(.98)}
+button:active{transform:translateY(1px)}
 .app{height:100dvh;display:flex;overflow:hidden}
 .sidebar{width:260px;flex-shrink:0;background:#141418;border-right:1px solid #292930;padding:17px 13px;display:flex;flex-direction:column;gap:10px;z-index:10}
-.brand{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;letter-spacing:-.6px;padding:8px 7px 17px}
-.logo.liquid-logo{position:relative;isolation:isolate;overflow:hidden;width:39px;height:39px;flex-shrink:0;border-radius:35%;background:radial-gradient(circle at 25% 17%,#fff 0%,#eee4ff 7%,transparent[...]
-.liquid-orb{position:absolute;inset:13%;border-radius:42% 58% 63% 37% / 43% 38% 62% 57%;background:radial-gradient(ellipse at 28% 20%,#fff 0%,#eee5ff 9%,#c7adff 26%,transparent 49%),linear-gradient(14[...]
-.liquid-orb:before{content:"";position:absolute;width:40%;height:18%;top:17%;left:14%;border-radius:50%;background:#fff;filter:blur(2px);opacity:.85;transform:rotate(-35deg)}
-.liquid-orb:after{content:"";position:absolute;width:28%;height:28%;right:12%;bottom:16%;border-radius:50%;background:#d9c7ff90;filter:blur(3px)}
-@keyframes liquidMorph{0%,100%{border-radius:42% 58% 63% 37% / 43% 38% 62% 57%;transform:rotate(0deg) scale(.93)}50%{border-radius:58% 42% 38% 62% / 57% 61% 39% 43%;transform:rotate(18deg) scale(1)} }
-@keyframes liquidGlow{0%,100%{box-shadow:0 0 18px #9870ff25,inset 0 2px 5px #ffffffa0}50%{box-shadow:0 0 32px #9870ff70,inset 0 2px 8px #ffffffc0}}
+.brand{display:flex;align-items:center;gap:12px;font-size:19px;font-weight:800;letter-spacing:-.6px;padding:8px 7px 17px}
+/* Logo: square container with liquid orb inside */
+.logo.liquid-logo{position:relative;isolation:isolate;overflow:hidden;width:42px;height:42px;flex-shrink:0;border-radius:6px;background:linear-gradient(135deg,#f7f4ff 0%,#e6ddff 18%,#d6c6ff 50%);box-shadow:0 6px 30px rgba(139,107,255,0.12), inset 0 -6px 30px rgba(0,0,0,0.25)}
+.liquid-orb{position:absolute;inset:8%;border-radius:40% 60% 48% 52% / 45% 48% 52% 55%;background:radial-gradient(ellipse at 30% 20%,#ffffff 0%,#fff5ff 8%,#d7c1ff 28%,transparent 52%),linear-gradient(120deg,#c7adff,#8d6df4);filter:drop-shadow(0 4px 18px rgba(139,107,255,0.25));animation:liquidMorph 5s ease-in-out infinite}
+.liquid-orb:before{content:"";position:absolute;width:36%;height:16%;top:12%;left:10%;border-radius:50%;background:#fff;filter:blur(2px);opacity:.95;transform:rotate(-35deg)}
+.liquid-orb:after{content:"";position:absolute;width:22%;height:22%;right:10%;bottom:12%;border-radius:50%;background:#ffd9ff55;filter:blur(6px)}
+@keyframes liquidMorph{0%,100%{border-radius:40% 60% 48% 52% / 45% 48% 52% 55%;transform:scale(.98)}50%{border-radius:58% 42% 38% 62% / 57% 61% 39% 43%;transform:scale(1.03)}}
 .brand .logo{display:grid;place-items:center}
-.new{width:100%;padding:13px;background:#1b1b22;border-color:#35353e;font-weight:650}
+.new{width:100%;padding:12px;background:#1b1b22;border-color:#35353e;font-weight:650;border-radius:0}
 .nav{width:100%;padding:12px;color:#c8c8d2;border-color:transparent}
 .nav.active{background:#292333;border-color:#393044;color:#e4dcff}
-.label{font-size:10px;font-weight:750;color:var(--muted);letter-spacing:1.5px;margin:18px 8px 5px}
-.history{overflow:auto;display:grid;gap:5px}
-.history button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ddd;border-color:transparent;padding:10px 11px;font-size:13px}
+.label{font-size:11px;font-weight:750;color:var(--muted);letter-spacing:1.4px;margin:18px 8px 6px}
+.history{overflow:auto;display:grid;gap:6px}
+.history button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ddd;border-color:transparent;padding:10px 11px;font-size:13px;border-radius:0}
 .history button:hover{background:#202026}
 .bottom{margin-top:auto;border-top:1px solid #292930;padding:15px 5px 0}
 .profile{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-bottom:8px}
 .bottom button{width:100%;margin-top:6px}
 .danger:hover{background:#3a2028;border-color:#75404b}
-.main{flex:1;min-width:0;display:flex;flex-direction:column;background:radial-gradient(ellipse at 50% -30%,#8b6bff0b,transparent 55%),var(--bg)}
-.top{height:62px;flex-shrink:0;border-bottom:1px solid #25252c;background:#0d0d10dd;backdrop-filter:blur(18px);display:flex;align-items:center;padding:0 18px;gap:12px;z-index:2}
-.top button{background:#19191f;border-radius:10px}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:radial-gradient(ellipse at 50% -30%,#8b6bff05,transparent 55%),var(--bg)}
+.top{height:62px;flex-shrink:0;border-bottom:1px solid #25252c;background:linear-gradient(180deg,rgba(13,13,16,0.9),rgba(13,13,16,0.7));backdrop-filter:blur(10px);display:flex;align-items:center;padding:0 18px;gap:12px;z-index:2}
+.top button{background:#19191f;border-radius:0}
 .topname{font-weight:750;letter-spacing:-.3px}
 .content{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#393440 transparent}
 .view{display:none;min-height:100%}
-.view.active{display:block;animation:viewIn .3s ease both}
-@keyframes viewIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.view.active{display:block;animation:viewIn .22s ease both}
+@keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .welcome{min-height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:32px 20px}
-.welcome>.logo{width:60px;height:60px;border-radius:35%}
-.welcome h1{font-size:clamp(29px,5vw,45px);font-weight:780;letter-spacing:-1.8px;line-height:1.12;margin:22px 0 8px}
+.welcome>.logo{width:64px;height:64px;border-radius:6px}
+.welcome h1{font-size:clamp(26px,5vw,44px);font-weight:780;letter-spacing:-1.4px;line-height:1.08;margin:18px 0 8px}
 .gradient{background:linear-gradient(100deg,#e2d8ff,#b9a5ff 45%,#9574ff);color:transparent;-webkit-background-clip:text;background-clip:text}
 .sub{color:#a4a4b2}
-.suggestions{width:min(680px,100%);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:25px}
-.suggestion{min-height:90px;background:linear-gradient(145deg,#19191f,#141418);border-color:#2c2c35;border-radius:16px;padding:18px}
-.suggestion:hover{background:#211e2b;border-color:#67558d;transform:translateY(-3px);box-shadow:0 8px 24px #0002}
+.suggestions{width:min(720px,100%);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:22px}
+.suggestion{min-height:86px;background:linear-gradient(180deg,#161617,#19191f);border-color:#2c2c35;padding:16px;border-radius:6px}
+.suggestion:hover{background:#1f1c24;border-color:#67558d;transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,0.6)}
 .suggestion strong,.suggestion span{display:block}
-.suggestion strong{font-size:14px;font-weight:680}
-.suggestion span{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.5}
-.messages{width:min(820px,100%);margin:auto;padding:30px 18px 40px;display:grid;gap:25px}
-.message{display:flex;gap:12px;align-items:flex-start;animation:messageIn .3s ease both}
+.suggestion strong{font-size:14px;font-weight:700}
+.suggestion span{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.45}
+.messages{width:min(860px,100%);margin:auto;padding:26px 18px 40px;display:grid;gap:20px}
+.message{display:flex;gap:12px;align-items:flex-start;animation:messageIn .18s ease both}
 .message.user{flex-direction:row-reverse}
-@keyframes messageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.avatar{flex-shrink:0;width:34px;height:34px;border-radius:11px;background:linear-gradient(140deg,#d3c4ff,#8e6cf2);color:#171220;display:grid;place-items:center;font-weight:850;font-size:13px}
+.avatar{flex-shrink:0;width:36px;height:36px;border-radius:6px;background:linear-gradient(140deg,#d3c4ff,#8e6cf2);color:#171220;display:grid;place-items:center;font-weight:850;font-size:13px}
 .message.user .avatar{background:#34313d;color:#f5f1ff}
-.bubble{max-width:85%;min-width:0;background:var(--panel);border:1px solid #303039;border-radius:17px;padding:13px 16px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble{max-width:85%;min-width:0;background:var(--panel);border:1px solid #303039;border-radius:6px;padding:12px 14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
 .message.user .bubble{background:#292630;border-color:#393441}
 .typing{display:flex;align-items:center;gap:5px;padding:8px 3px}
-.typing span{width:6px;height:6px;border-radius:50%;background:#b5a0ff;animation:dotPulse 1.1s ease-in-out infinite}
-.typing span:nth-child(2){animation-delay:.15s}
-.typing span:nth-child(3){animation-delay:.3s}
-@keyframes dotPulse{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+.typing span{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:dotPulse 1.1s ease-in-out infinite}
+.typing span:nth-child(2){animation-delay:.12s}
+.typing span:nth-child(3){animation-delay:.24s}
+@keyframes dotPulse{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
 .composer-wrap{flex-shrink:0;padding:12px 15px max(12px,env(safe-area-inset-bottom))}
-.composer{width:min(820px,100%);margin:auto;background:#19191f;border:1px solid #383842;border-radius:23px;padding:12px;box-shadow:0 10px 40px #0002;transition:border-color .2s,box-shadow .2s}
-.composer:focus-within{border-color:#77659f;box-shadow:0 0 0 3px #a18aff12}
-textarea{width:100%;resize:none;min-height:42px;max-height:170px;border:0;outline:0;background:transparent;color:white;padding:8px;line-height:1.6}
+.composer{width:min(880px,100%);margin:auto;background:#19191f;border:1px solid #383842;border-radius:6px;padding:12px;box-shadow:0 8px 40px rgba(0,0,0,0.6);transition:border-color .18s,box-shadow .18s}
+.composer:focus-within{border-color:var(--accent);box-shadow:0 8px 40px rgba(139,107,255,0.08)}
+textarea{width:100%;resize:none;min-height:44px;max-height:170px;border:0;outline:0;background:transparent;color:white;padding:8px;line-height:1.6}
 .actions{display:flex;align-items:center;gap:8px}
-.actions button{border:0;color:#ccc;font-size:12px;border-radius:9px;padding:9px 11px}
+.actions button{border:0;color:#ccc;font-size:13px;border-radius:0;padding:10px 12px}
 .actions button:hover{background:#2b2736}
-.send{margin-left:auto;min-width:40px;min-height:40px;display:grid;place-items:center;border-radius:13px!important;background:#c2b0ff!important;color:#17121f!important;font-weight:900;font-size:19px}
-.send:hover{background:#d4c7ff!important}
+/* Primary button with glow */
+.primary{background:linear-gradient(90deg,var(--accent-strong),var(--accent));color:#0f0b1b;border:0;border-radius:0;padding:10px 14px;font-weight:700;box-shadow:0 10px 40px rgba(139,107,255,0.14),0 0 18px rgba(161,138,255,0.08)}
+.primary:hover{box-shadow:0 16px 50px rgba(139,107,255,0.22),0 0 28px rgba(161,138,255,0.12);transform:translateY(-1px)}
+/* Send button emphasized */
+.send{margin-left:auto;min-width:40px;min-height:40px;display:grid;place-items:center;border-radius:0;background:linear-gradient(90deg,#bfb0ff,#c8b8ff);color:#17121f;font-weight:900;font-size:18px;box-shadow:0 12px 40px rgba(161,138,255,0.12)}
+.send:hover{box-shadow:0 18px 60px rgba(161,138,255,0.18)}
 .note{text-align:center;font-size:10px;color:#737380;padding-top:10px}
-.studio{max-width:820px;margin:auto;padding:30px 22px}
-.studio h1{font-size:35px;letter-spacing:-1.2px;margin:5px 0}
-.studio textarea{display:block;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;min-height:120px;margin-top:20px}
-.primary{background:linear-gradient(100deg,#c8b8ff,#a18aff);color:#17121f;border:0;border-radius:12px;padding:12px 16px;font-weight:750}
-.primary:hover{background:linear-gradient(100deg,#ded3ff,#b5a0ff);box-shadow:0 5px 20px #a18aff20}
+.studio{max-width:860px;margin:auto;padding:24px 22px}
+.studio h1{font-size:34px;letter-spacing:-1.2px;margin:6px 0}
+.studio textarea{display:block;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;min-height:120px;margin-top:20px}
 #imageResult{margin-top:18px}
-#imageResult img{display:block;width:100%;height:auto;max-height:650px;object-fit:contain;border-radius:16px;border:1px solid #303039;animation:viewIn .35s ease both}
+#imageResult img{display:block;width:100%;height:auto;max-height:650px;object-fit:contain;border-radius:8px;border:1px solid #303039;animation:viewIn .25s ease both}
 .image-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .image-actions a{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
-.status{color:#cbbdff;font-size:12px;min-height:20px;margin-top:12px;overflow-wrap:anywhere;line-height:1.6}
-.overlay{position:fixed;inset:0;background:#08080bdc;backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:18px;z-index:20;overflow:auto;animation:overlayIn .25s ease both}
+.status{color:var(--accent);font-size:12px;min-height:20px;margin-top:12px;overflow-wrap:anywhere;line-height:1.6}
+.overlay{position:fixed;inset:0;background:#06060bdc;backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:18px;z-index:30;overflow:auto;animation:overlayIn .22s ease both}
 @keyframes overlayIn{from{opacity:0}to{opacity:1}}
-.card{width:min(420px,100%);background:linear-gradient(155deg,#1c1b23,#121216 75%);border:1px solid #35323f;border-radius:25px;padding:30px;box-shadow:0 24px 90px #0008;margin:auto;animation:cardIn .3s ease both}
-@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
-.card .brand{justify-content:center;font-size:21px;padding:5px 0 16px}
-.card h2{text-align:center;font-size:27px;letter-spacing:-1px;margin:12px 0 8px}
+.card{width:min(460px,100%);background:linear-gradient(180deg,#17171b,#0f0f12);border:1px solid #2c2a33;border-radius:8px;padding:28px;box-shadow:0 40px 120px rgba(0,0,0,0.7);margin:auto;animation:cardIn .22s ease both}
+@keyframes cardIn{from{opacity:0;transform:translateY(12px) scale(.996)}to{opacity:1;transform:translateY(0) scale(1)}}
+.card .brand{justify-content:center;font-size:20px;padding:4px 0 12px}
+.card h2{text-align:center;font-size:26px;letter-spacing:-1px;margin:8px 0 10px}
 .card p{text-align:center;color:var(--muted);font-size:13px;line-height:1.6}
-.card label{display:block;font-size:12px;font-weight:650;color:#dedee7;margin:19px 0 7px}
-.card input{width:100%;min-height:47px;padding:12px;background:#101014;border:1px solid #383842;border-radius:12px;color:white;outline:none;transition:border-color .2s,box-shadow .2s}
-.card input:focus{border-color:#a18aff;box-shadow:0 0 0 3px #a18aff18}
-.card .primary{width:100%;min-height:47px;margin-top:14px;text-align:center}
-.auth-switch{display:flex;gap:8px;margin:18px 0 8px}
-.auth-switch button{flex:1;text-align:center}
-.auth-switch button.active{background:#302747;border-color:#7764a9}
+.card label{display:block;font-size:13px;font-weight:700;color:#dedee7;margin:16px 0 8px}
+.card input{width:100%;min-height:46px;padding:12px;background:#0f0f12;border:1px solid #2f2f35;border-radius:4px;color:white;outline:none;transition:border-color .12s,box-shadow .12s}
+.card input:focus{border-color:var(--accent-strong);box-shadow:0 8px 30px rgba(139,107,255,0.06)}
+.card .primary{width:100%;min-height:46px;margin-top:12px;text-align:center}
+.auth-switch{display:flex;gap:8px;margin:14px 0 10px}
+.auth-switch button{flex:1;text-align:center;border-radius:0}
+.auth-switch button.active{background:#2b2338;border-color:#7764a9}
 .secondary{width:100%;text-align:center;margin-top:9px}
 .small{font-size:11px!important;line-height:1.6}
 .hidden{display:none!important}
@@ -113,16 +120,16 @@ textarea{width:100%;resize:none;min-height:42px;max-height:170px;border:0;outlin
 .top{height:57px;padding:0 10px}
 .welcome{padding:24px 14px}
 .welcome h1{letter-spacing:-1.2px}
-.suggestions{grid-template-columns:1fr;gap:9px;margin-top:20px}
-.suggestion{min-height:75px;padding:15px}
-.messages{padding:20px 10px 28px;gap:19px}
-.bubble{max-width:90%;padding:11px 13px}
+.suggestions{grid-template-columns:1fr;gap:9px;margin-top:18px}
+.suggestion{min-height:75px;padding:14px}
+.messages{padding:20px 10px 28px;gap:18px}
+.bubble{max-width:90%;padding:10px 12px}
 .composer-wrap{padding:8px 9px max(10px,env(safe-area-inset-bottom))}
-.composer{border-radius:20px;padding:9px}
-.studio{padding:23px 14px}
+.composer{border-radius:6px;padding:10px}
+.studio{padding:20px 14px}
 .studio h1{font-size:30px}
-.card{padding:25px 21px;border-radius:22px}
-.actions{gap:4px}
+.card{padding:20px 16px;border-radius:10px}
+.actions{gap:6px}
 .actions button{padding:8px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
@@ -192,12 +199,13 @@ textarea{width:100%;resize:none;min-height:42px;max-height:170px;border:0;outlin
 <button class="primary" id="loginButton" type="submit">Sign in</button>
 </form>
 <button type="button" class="secondary hidden" id="resend">Resend verification email</button>
+<button type="button" class="danger" id="wipeData">🧹 &nbsp; Wipe local data</button>
 <div class="status" id="loginStatus" role="status" aria-live="polite"></div>
 <p class="small">New accounts must verify their email before signing in. Check your inbox and spam folder.</p>
 </div>
 </div>
 <script>
-(()=>{
+(()=>{ 
 'use strict';
 const $=id=>document.getElementById(id);
 let sb=null,session=null,busy=false,chats=[],chatId=null,authMode='signin',pendingVerificationEmail='';
@@ -228,9 +236,9 @@ async function init(){
   sb=window.supabase.createClient(c.supabaseUrl,c.supabaseAnonKey,{
    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
   });
-  const {data,error}=await sb.auth.getSession();
-  if(error)throw error;
-  applySession(data.session);
+  // Force sign-out on page load so previously-verified sessions must re-login
+  try{ await sb.auth.signOut(); }catch(e){ console.warn('Forced sign-out failed',e); }
+  applySession(null);
   sb.auth.onAuthStateChange((event,s)=>{
    applySession(s);
    if(event==='SIGNED_IN'&&(location.hash.includes('access_token')||location.search.includes('token_hash'))){
@@ -406,10 +414,14 @@ function blobFromBase64(value){
  const match=value.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
  const mime=match?match[1]:'image/png';
  const raw=(match?match[2]:value).replace(/\s/g,'');
- const binary=atob(raw);
- const bytes=new Uint8Array(binary.length);
- for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
- return new Blob([bytes],{type:mime});
+ try {
+   const binary=atob(raw);
+   const bytes=new Uint8Array(binary.length);
+   for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+   return new Blob([bytes],{type:mime});
+ } catch(e){
+   return null;
+ }
 }
 
 async function generate(){
@@ -422,11 +434,7 @@ async function generate(){
  $('imageResult').replaceChildren();
 
  try{
-  const r=await fetch('/api/image',{
-   method:'POST',
-   headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
-   body:JSON.stringify({prompt})
-  });
+  const r=await fetch('/api/image',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({prompt})});
   const type=(r.headers.get('Content-Type')||'').toLowerCase();
   if(!r.ok){
    const d=type.includes('application/json')
@@ -440,17 +448,14 @@ async function generate(){
    blob=await r.blob();
   }else if(type.includes('application/json')){
    const d=await r.json();
-   if(typeof d.image==='string'){
-    blob=blobFromBase64(d.image);
-   }else if(typeof d.data==='string'){
-    blob=blobFromBase64(d.data);
-   }else if(typeof d.image_base64==='string'){
-    blob=blobFromBase64(d.image_base64);
-   }else{
-    throw Error(d.error||d.details||'Server returned JSON but no image data.');
-   }
+   if(typeof d.image==='string')blob=blobFromBase64(d.image);
+   else if(typeof d.data==='string')blob=blobFromBase64(d.data);
+   else if(typeof d.image_base64==='string')blob=blobFromBase64(d.image_base64);
+   else if(d.debugMode && typeof d.preview === 'string'){
+    throw Error('Debug: model returned: '+d.preview);
+   } else throw Error(d.error||d.details||'Server returned JSON but no image data.');
   }else{
-   const raw=await r.text().catch(()=>'');
+   const raw=await r.text().catch(()=>'' );
    throw Error('Unexpected image response ('+(type||'unknown type')+'). '+raw.slice(0,250));
   }
 
@@ -462,10 +467,7 @@ async function generate(){
   img.src=objectUrl;
   img.alt=prompt;
   img.onload=()=>{$('imageStatus').textContent='Your image is ready.'};
-  img.onerror=()=>{
-   URL.revokeObjectURL(objectUrl);
-   $('imageStatus').textContent='The returned file could not be displayed as an image.';
-  };
+  img.onerror=()=>{URL.revokeObjectURL(objectUrl);$('imageStatus').textContent='The returned file could not be displayed as an image.';};
 
   const actions=document.createElement('div');
   actions.className='image-actions';
@@ -536,14 +538,22 @@ $('resend').onclick=async()=>{
  finally{$('resend').disabled=false}
 };
 
+// Wipe local data button
+$('wipeData').onclick=async()=>{
+ if(!confirm('This will erase all local chat history and cached data in your browser. Continue?'))return;
+ try{
+  localStorage.clear();
+  chats=[];chatId=null;
+  renderHistory();render();
+  showStatus('Local data cleared.');
+ }catch(e){console.warn('Wipe failed',e);showStatus('Could not clear local data.');}
+};
+
 $('signInTab').onclick=()=>setAuthMode('signin');
 $('signUpTab').onclick=()=>setAuthMode('signup');
 $('send').onclick=()=>send();
 $('prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
-$('prompt').addEventListener('input',()=>{
- $('prompt').style.height='auto';
- $('prompt').style.height=Math.min($('prompt').scrollHeight,170)+'px';
-});
+$('prompt').addEventListener('input',()=>{$('prompt').style.height='auto';$('prompt').style.height=Math.min($('prompt').scrollHeight,170)+'px';});
 $('new').onclick=fresh;
 $('menu').onclick=()=>$('sidebar').classList.toggle('open');
 $('chatTab').onclick=showChat;
@@ -564,6 +574,9 @@ $('logout').onclick=async()=>{
   const {error}=await sb.auth.signOut();
   if(error)console.error('VYRO sign-out error:',error);
  }
+ // clear local chat data on logout as requested
+ try{localStorage.removeItem(key);}catch(e){console.warn('Failed to remove local history',e)}
+ chats=[];chatId=null;
  session=null;
  $('profile').textContent='Not signed in';
  $('login').style.display='flex';
@@ -574,7 +587,7 @@ init();
 })();
 </script>
 </body>
-</html>`
+</html>`;
 
 function json(data,status=200){
   return new Response(JSON.stringify(data),{
@@ -590,188 +603,172 @@ function json(data,status=200){
 async function verifyUser(request,env){
   const auth=request.headers.get("Authorization")||"";
   const token=auth.startsWith("Bearer ")?auth.slice(7):"";
-  if(!token||!env.SUPABASE_URL||!env.SUPABASE_ANON_KEY)return null;
+  if(!token||!env.SUPABASE_URL||!env.SUPABASE_ANON_KEY) return null;
   try{
-    const r=await fetch(env.SUPABASE_URL.replace(/\/+$/,"")+"/auth/v1/user",{
+    const r=await fetch(env.SUPABASE_URL.replace(/\/+$/, '')+"/auth/v1/user",{
       headers:{Authorization:"Bearer "+token,apikey:env.SUPABASE_ANON_KEY}
     });
-    if(!r.ok)return null;
+    if(!r.ok) return null;
     const user=await r.json();
-    return user&&user.id?user:null;
+    return user && user.id ? user : null;
   }catch(e){
-    console.error("VYRO AUTH ERROR:",e instanceof Error?e.message:String(e));
+    console.error("VYRO AUTH ERROR:", e instanceof Error ? e.message : String(e));
     return null;
   }
 }
 
 function imageResponse(bytes,mime="image/png"){
-  return new Response(bytes,{
-    headers:{
-      "Content-Type":mime,
-      "Cache-Control":"no-store",
-      "X-Content-Type-Options":"nosniff"
+  // Accept ArrayBuffer or Uint8Array
+  return new Response(bytes, {
+    headers: {
+      "Content-Type": mime,
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff"
     }
   });
 }
 
-export default {
- async fetch(request,env){
-  const url=new URL(request.url);
-  const started=Date.now();
-  const requestId=crypto.randomUUID();
-  const log=(event,details={})=>console.log(JSON.stringify({
-   service:"VYRO AI",requestId,event,elapsedMs:Date.now()-started,...details
-  }));
-
-  if(request.method==="OPTIONS"){
-   return new Response(null,{status:204,headers:{
-    "Access-Control-Allow-Origin":url.origin,
-    "Access-Control-Allow-Methods":"GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers":"Content-Type,Authorization",
-    "Access-Control-Max-Age":"86400"
-   }});
-  }
-
-  if(request.method==="GET"&&(url.pathname==="/"||url.pathname==="/index.html")){
-   return new Response(HTML,{headers:{
-    "Content-Type":"text/html; charset=utf-8",
-    "Cache-Control":"no-cache",
-    "X-Content-Type-Options":"nosniff"
-   }});
-  }
-
-  if(request.method==="GET"&&url.pathname==="/api/config"){
-   return json({
-    supabaseUrl:env.SUPABASE_URL||"",
-    supabaseAnonKey:env.SUPABASE_ANON_KEY||""
-   });
-  }
-
-  if(request.method==="GET"&&url.pathname==="/api/health"){
-   return json({
-    ok:true,
-    service:"VYRO AI",
-    ai:!!env.AI,
-    supabaseConfigured:!!(env.SUPABASE_URL&&env.SUPABASE_ANON_KEY)
-   });
-  }
-
-  if(url.pathname==="/api/chat"&&request.method==="POST"){
-   log("chat.request");
-   try{
-    if(!await verifyUser(request,env)){
-     log("chat.auth_failed");
-     return json({error:"Please sign in again. If your email is not verified, verify it first.",requestId},401);
+function pickImagePayload(result){
+  // Return {mime, bytes:Uint8Array} or null
+  if (result instanceof ArrayBuffer) return {mime:'image/png', bytes:new Uint8Array(result)};
+  if (result instanceof Uint8Array) return {mime:'image/png', bytes:result};
+  if (typeof result === 'string') {
+    const match = result.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
+    if (match) {
+      const raw = match[2].replace(/\s/g,'');
+      return {mime:match[1], bytes:Uint8Array.from(atob(raw), c => c.charCodeAt(0))};
     }
-    if(!env.AI){
-     log("chat.binding_missing");
-     return json({error:"Workers AI binding named AI is missing.",requestId},500);
-    }
-    let body;
-    try{body=await request.json()}catch{return json({error:"Invalid JSON.",requestId},400)}
-    const messages=Array.isArray(body.messages)?body.messages.slice(-20):[];
-    if(!messages.length)return json({error:"Send a message first.",requestId},400);
-    const clean=messages.map(m=>({
-     role:m.role==="assistant"?"assistant":"user",
-     content:String(m.content||"").slice(0,10000)
-    }));
-    const result=await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast",{
-     messages:[
-      {role:"system",content:"You are VYRO AI, a helpful and accurate assistant. Explain clearly and naturally."},
-      ...clean
-     ],
-     max_tokens:1200
-    });
-    log("chat.success",{messageCount:messages.length});
-    return json({response:result?.response||"No response generated.",requestId});
-   }catch(e){
-    const details=e instanceof Error?e.message:String(e);
-    console.error(JSON.stringify({service:"VYRO AI",requestId,event:"chat.error",elapsedMs:Date.now()-started,details:details.slice(0,1200)}));
-    return json({error:"AI request failed. Check Workers AI availability and limits.",details:details.slice(0,500),requestId},502);
-   }
+    const raw = result.replace(/\s/g,'');
+    try { return {mime:'image/png', bytes:Uint8Array.from(atob(raw), c => c.charCodeAt(0))}; } catch { return null; }
   }
-
-  if(url.pathname==="/api/image"&&request.method==="POST"){
-   log("image.request");
-   try{
-    if(!await verifyUser(request,env)){
-     log("image.auth_failed");
-     return json({error:"Please sign in again. If your email is not verified, verify it first.",requestId},401);
-    }
-    if(!env.AI){
-     log("image.binding_missing");
-     return json({error:"Workers AI binding named AI is missing.",requestId},500);
-    }
-    let body;
-    try{body=await request.json()}catch{return json({error:"Invalid JSON.",requestId},400)}
-    const prompt=String(body.prompt||"").trim().slice(0,1500);
-    if(!prompt)return json({error:"Describe your image first.",requestId},400);
-
-    log("image.model_start",{model:"@cf/black-forest-labs/flux-1-schnell",promptLength:prompt.length});
-    const result=await env.AI.run("@cf/black-forest-labs/flux-1-schnell",{
-     prompt,
-     steps:4
-    });
-
-    if(result instanceof Response){
-     if(!result.ok){
-      const detail=await result.text().catch(()=>"");
-      log("image.model_http_error",{status:result.status,details:detail.slice(0,1200)});
-      return json({error:"Workers AI image request failed.",details:detail.slice(0,1200)||("Model returned HTTP "+result.status+"."),requestId},502);
-     }
-     // Safely read content type
-     const contentType = (result.headers.get("Content-Type") || "").toLowerCase();
-     if(contentType.startsWith('image/')){
-      const buf = await result.arrayBuffer();
-      log('image.model_success',{contentType});
-      return imageResponse(buf, contentType);
-     }
-     if(contentType.includes('application/json')){
-      const d = await result.json().catch(()=> ({}));
-      const b64 = typeof d.image === 'string' ? d.image : typeof d.data === 'string' ? d.data : typeof d.image_base64 === 'string' ? d.image_base64 : null;
-      if(b64){
-       const match = b64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
-       const mime = match ? match[1] : 'image/png';
-       const raw = match ? match[2] : b64;
-       const binary = Uint8Array.from(atob(raw), c=>c.charCodeAt(0));
-       return imageResponse(binary, mime);
+  if (result && typeof result === 'object') {
+    const candidate = result.image ?? result.data ?? result.image_base64 ?? result.output ?? result.result ?? null;
+    if (typeof candidate === 'string') {
+      const match = candidate.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
+      if (match) {
+        const raw = match[2].replace(/\s/g,'');
+        return {mime:match[1], bytes:Uint8Array.from(atob(raw), c => c.charCodeAt(0))};
       }
-      // No usable image field in JSON
-      return json({error:'Model returned JSON but no image data',details:d,requestId},502);
-     }
-     // Unexpected content-type
-     const raw = await result.text().catch(()=>"");
-     return json({error:'Unexpected image response ('+(contentType||'unknown')+').',details:raw.slice(0,1200),requestId},502);
-    }else{
-     // result is not a Response object - may be a structured result
-     const b64 = result && (typeof result.image === 'string' ? result.image : typeof result.data === 'string' ? result.data : typeof result.image_base64 === 'string' ? result.image_base64 : null);
-     if(b64){
-      const match = b64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
-      const mime = match ? match[1] : 'image/png';
-      const raw = match ? match[2] : b64;
-      const binary = Uint8Array.from(atob(raw), c=>c.charCodeAt(0));
-      return imageResponse(binary, mime);
-     }
-     // Try other common shapes
-     if(result && typeof result.output === 'string'){
-      const rawB64 = result.output;
-      const match = rawB64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
-      const mime = match ? match[1] : 'image/png';
-      const raw = match ? match[2] : rawB64;
-      const binary = Uint8Array.from(atob(raw), c=>c.charCodeAt(0));
-      return imageResponse(binary, mime);
-     }
-     log('image.model_unexpected',{result});
-     return json({error:'Unexpected image model result',details:JSON.stringify(result).slice(0,1200),requestId},502);
+      const raw = candidate.replace(/\s/g,'');
+      try { return {mime:'image/png', bytes:Uint8Array.from(atob(raw), c => c.charCodeAt(0))}; } catch { return null; }
     }
-   }catch(e){
-    const details=e instanceof Error?e.message:String(e);
-    log('image.error',{details:details.slice(0,1200)});
-    console.error(JSON.stringify({service:"VYRO AI",requestId,event:"image.error",elapsedMs:Date.now()-started,details:details.slice(0,1200)}));
-    return json({error:"Image generation failed. Check Workers AI availability and limits.",details:details.slice(0,500),requestId},502);
-   }
+    if (candidate instanceof ArrayBuffer) return {mime:'image/png', bytes:new Uint8Array(candidate)};
+    if (candidate instanceof Uint8Array) return {mime:'image/png', bytes:candidate};
   }
+  return null;
+}
 
-  return json({error:'Not found'},404);
- }
+export default {
+  async fetch(request,env){
+    const url=new URL(request.url);
+    const started=Date.now();
+    const requestId=crypto.randomUUID();
+    const log=(event,details={})=>console.log(JSON.stringify({service:"VYRO AI",requestId,event,elapsedMs:Date.now()-started,...details}));
+
+    if(request.method==="OPTIONS"){
+      return new Response(null,{status:204,headers:{
+        "Access-Control-Allow-Origin":url.origin,
+        "Access-Control-Allow-Methods":"GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers":"Content-Type,Authorization",
+        "Access-Control-Max-Age":"86400"
+      }});
+    }
+
+    if(request.method==="GET"&&(url.pathname==="/"||url.pathname==="/index.html")){
+      return new Response(HTML,{headers:{
+        "Content-Type":"text/html; charset=utf-8",
+        "Cache-Control":"no-cache",
+        "X-Content-Type-Options":"nosniff"
+      }});
+    }
+
+    if(request.method==="GET"&&url.pathname==="/api/config"){
+      return json({supabaseUrl:env.SUPABASE_URL||"",supabaseAnonKey:env.SUPABASE_ANON_KEY||""});
+    }
+
+    if(request.method==="GET"&&url.pathname==="/api/health"){
+      return json({ok:true,service:"VYRO AI",ai:!!env.AI,supabaseConfigured:!!(env.SUPABASE_URL&&env.SUPABASE_ANON_KEY)});
+    }
+
+    // Chat endpoint
+    if(url.pathname==="/api/chat"&&request.method==="POST"){
+      log("chat.request");
+      try{
+        if(!await verifyUser(request,env)){
+          log("chat.auth_failed");
+          return json({error:"Please sign in again. If your email is not verified, verify it first.",requestId},401);
+        }
+        if(!env.AI){
+          log("chat.binding_missing");
+          return json({error:"Workers AI binding named AI is missing.",requestId},500);
+        }
+        let body;
+        try{ body = await request.json(); } catch { return json({error:"Invalid JSON.",requestId},400); }
+        const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+        if(!messages.length) return json({error:"Send a message first.",requestId},400);
+        const clean = messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0,10000) }));
+        const result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", { messages: [{role:"system",content:"You are VYRO AI, a helpful and accurate assistant. Explain clearly and naturally."}, ...clean], max_tokens:1200 });
+        log("chat.success",{messageCount:messages.length});
+        // result may be structured; reading .response is common
+        return json({response: result?.response ?? (typeof result === 'string' ? result : 'No response generated.'), requestId});
+      }catch(e){
+        const details = e instanceof Error ? e.message : String(e);
+        console.error(JSON.stringify({service:"VYRO AI",requestId,event:"chat.error",elapsedMs:Date.now()-started,details:details.slice(0,1200)}));
+        return json({error:"AI request failed. Check Workers AI availability and limits.",details:details.slice(0,500),requestId},502);
+      }
+    }
+
+    // Image endpoint with debug mode
+    if(url.pathname==="/api/image"&&request.method==="POST"){
+      const debug = url.searchParams.get('debug') === '1';
+      log("image.request",{debug});
+      try{
+        if(!await verifyUser(request,env)){
+          log("image.auth_failed");
+          return json({error:"Please sign in again. If your email is not verified, verify it first.",requestId},401);
+        }
+        if(!env.AI){
+          log("image.binding_missing");
+          return json({error:"Workers AI binding named AI is missing.",requestId},500);
+        }
+        let body;
+        try{ body = await request.json(); } catch { return json({error:"Invalid JSON.",requestId},400); }
+        const prompt = String(body.prompt || '').trim().slice(0,1500);
+        if(!prompt) return json({error:"Describe your image first.",requestId},400);
+
+        log("image.model_start",{model:"@cf/black-forest-labs/flux-1-schnell",promptLength:prompt.length});
+        const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt, steps: 4 });
+
+        if(debug){
+          const preview = typeof result === 'string' ? result.slice(0,400) : (() => { try { return JSON.stringify(result).slice(0,400) } catch { return String(result).slice(0,400) } })();
+          return json({
+            ok: false,
+            debugMode: true,
+            requestId,
+            resultType: result === null ? 'null' : Array.isArray(result) ? 'array' : typeof result,
+            constructorName: result && result.constructor ? result.constructor.name : 'none',
+            preview,
+            hasImageKey: !!(result && typeof result === 'object' && ('image' in result || 'data' in result || 'image_base64' in result || 'output' in result || 'result' in result)),
+            keys: result && typeof result === 'object' ? Object.keys(result).slice(0,20) : null
+          },200);
+        }
+
+        const payload = pickImagePayload(result);
+        if(!payload){
+          log('image.model_unexpected',{resultType: typeof result});
+          return json({error:'Unexpected image model result',details: typeof result === 'string' ? result.slice(0,1000) : (()=>{ try{return JSON.stringify(result).slice(0,1000)}catch{return String(result).slice(0,1000)}})(), requestId},502);
+        }
+
+        log('image.model_success',{contentType:payload.mime,bytes:payload.bytes.length});
+        return imageResponse(payload.bytes,payload.mime);
+      }catch(e){
+        const details=e instanceof Error?e.message:String(e);
+        log('image.error',{details:details.slice(0,1200)});
+        console.error(JSON.stringify({service:"VYRO AI",requestId,event:"image.error",elapsedMs:Date.now()-started,details:details.slice(0,1200)}));
+        return json({error:"Image generation failed. Check Workers AI availability and limits.",details:details.slice(0,500),requestId},502);
+      }
+    }
+
+    return json({error:'Not found'},404);
+  }
 };
