@@ -1,5 +1,5 @@
 name = "vyro-backend"
 compatibility_date = "2026-10-18"
-
++
 [vars]
 SUPABASE_URL = "https://bmlyceooxphplcoiamdg.supabase.co"
