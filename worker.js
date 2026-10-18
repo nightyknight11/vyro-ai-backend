@@ -1,785 +1,78 @@
 
-const HTML = String.raw`<!doctype html>
+const HTML = String.raw`<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111113">
-<meta name="description" content="VYRO AI — think, create, and explore.">
-<title>VYRO AI</title>
+<meta name="theme-color" content="#09090b">
+<title>Vyro AI</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root {
-  color-scheme: dark;
-  --bg:#111113;
-  --panel:#19191d;
-  --panel2:#222226;
-  --line:#303036;
-  --text:#f4f3f1;
-  --muted:#a09faa;
-  --accent:#c3b3ff;
-  --accentText:#211a32;
-  --radius:16px;
-}
-*{box-sizing:border-box}
-html{height:100%;scroll-behavior:smooth}
-body{
-  margin:0;min-height:100%;background:var(--bg);color:var(--text);
-  font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
-  letter-spacing:-.12px;-webkit-font-smoothing:antialiased
-}
-button,input,textarea{font:inherit}
-button{cursor:pointer;color:inherit;-webkit-tap-highlight-color:transparent}
-button:disabled{opacity:.55;cursor:wait}
-button:focus-visible,input:focus-visible,textarea:focus-visible{
-  outline:2px solid var(--accent);outline-offset:3px
-}
-.app{height:100dvh;min-height:440px;display:flex;overflow:hidden}
-.sidebar{
-  position:relative;z-index:20;width:258px;flex:0 0 258px;
-  background:#151517;border-right:1px solid #29292e;padding:15px 12px;
-  display:flex;flex-direction:column;gap:8px;
-  transition:transform .25s cubic-bezier(.2,.7,.2,1)
-}
-.brand{
-  display:flex;align-items:center;gap:10px;font-size:19px;
-  font-weight:780;letter-spacing:-.7px;padding:8px 7px 18px
-}
-.logo{
-  width:35px;height:35px;flex:0 0 35px;border-radius:12px;
-  background:var(--accent);display:grid;place-items:center;
-  color:var(--accentText);font-weight:900;letter-spacing:-1px;
-  box-shadow:0 4px 20px #c3b3ff16
-}
-button{
-  border:1px solid var(--line);background:transparent;
-  border-radius:11px;padding:10px;text-align:left;
-  transition:background .18s,border-color .18s,transform .18s,box-shadow .18s
-}
-button:hover{background:#252529;border-color:#484850}
-button:active{transform:scale(.985)}
-.new{
-  width:100%;padding:12px;background:#202024;border-color:#393940;
-  font-weight:650
-}
-.nav{
-  width:100%;padding:11px 12px;color:#c6c5ce;
-  border-color:transparent;display:flex;align-items:center;gap:10px
-}
-.nav-icon{width:19px;text-align:center;font-size:16px;color:#aaa7b6}
-.nav.active{background:#2a2633;border-color:#393342;color:#f0eaff}
-.nav.active .nav-icon{color:var(--accent)}
-.label{
-  font-size:10px;color:#898893;font-weight:750;letter-spacing:1.4px;
-  margin:18px 8px 5px
-}
-.history{overflow:auto;display:grid;gap:3px;align-content:start}
-.history button{
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  color:#c8c7ce;border-color:transparent;padding:9px 10px;
-  border-radius:9px;font-size:13px
-}
-.history button:hover{background:#222226}
-.bottom{
-  margin-top:auto;border-top:1px solid #2a2a30;padding:13px 4px 0;
-  display:grid;gap:9px
-}
-.profile{font-size:12px;color:var(--muted);overflow-wrap:anywhere;padding:0 6px}
-#logout{font-size:13px;color:#c8c6d0;border-color:transparent}
-.main{
-  flex:1;min-width:0;display:flex;flex-direction:column;
-  background:radial-gradient(ellipse at 50% -40%,#b8a3ff0b,transparent 62%),var(--bg)
-}
-.top{
-  height:60px;flex:0 0 60px;border-bottom:1px solid #27272c;
-  display:flex;align-items:center;padding:0 20px;gap:12px;
-  background:#111113e8;backdrop-filter:blur(14px)
-}
-.top button{
-  background:#1a1a1e;border-color:#303036;width:36px;height:36px;
-  padding:0;text-align:center;display:grid;place-items:center
-}
-.topname{font-weight:680;letter-spacing:-.3px}
-.topright{margin-left:auto;font-size:12px;color:#85848e}
-.content{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
-.view{display:none;min-height:100%}
-.view.active{display:block;animation:view-in .24s ease both}
-.welcome{
-  min-height:100%;display:flex;flex-direction:column;
-  justify-content:center;align-items:center;text-align:center;
-  padding:34px 22px 42px
-}
-.welcome-mark{margin-bottom:5px;animation:float 5s ease-in-out infinite}
-.welcome h1{
-  font-size:clamp(31px,4.5vw,45px);font-weight:740;
-  letter-spacing:-2px;line-height:1.1;margin:17px 0 10px
-}
-.accent{color:var(--accent)}
-.sub{color:var(--muted)}
-.welcome .sub{margin:0}
-.suggestions{
-  width:min(690px,100%);display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:10px;margin-top:30px
-}
-.suggestion{
-  min-height:92px;background:#19191d;border-color:#2e2e34;
-  border-radius:15px;padding:16px;text-align:left;
-  display:flex;flex-direction:column;justify-content:center;gap:5px
-}
-.suggestion:hover{
-  background:#211f27;border-color:#5b506e;transform:translateY(-2px)
-}
-.suggestion strong{font-size:13px;font-weight:680}
-.suggestion span{font-size:12px;line-height:1.5;color:var(--muted)}
-.messages{
-  width:min(800px,100%);margin:auto;padding:28px 22px 38px;
-  display:grid;gap:23px
-}
-.message{
-  display:flex;gap:11px;align-items:flex-start;
-  animation:message-in .25s ease both
-}
-.message.user{flex-direction:row-reverse}
-.avatar{
-  flex:0 0 31px;width:31px;height:31px;border-radius:10px;
-  background:var(--accent);color:var(--accentText);
-  display:grid;place-items:center;font-size:12px;font-weight:850
-}
-.message.user .avatar{background:#35343b;color:#f0eef5}
-.bubble{
-  max-width:calc(100% - 42px);background:#1b1b1f;
-  border:1px solid #303036;padding:12px 15px;
-  border-radius:5px 16px 16px 16px;white-space:pre-wrap;
-  overflow-wrap:anywhere;line-height:1.75
-}
-.message.user .bubble{
-  background:#29272e;border-color:#39373f;
-  border-radius:16px 5px 16px 16px
-}
-.thinking{
-  display:flex;align-items:center;gap:9px;
-  color:#aaa7b5;font-size:13px;padding:7px 2px
-}
-.dots{display:flex;gap:4px}
-.dots i{
-  width:5px;height:5px;border-radius:50%;background:var(--accent);
-  animation:pulse 1s infinite ease-in-out
-}
-.dots i:nth-child(2){animation-delay:.15s}
-.dots i:nth-child(3){animation-delay:.3s}
-.composer-wrap{
-  padding:12px 18px max(12px,env(safe-area-inset-bottom));
-  background:linear-gradient(180deg,transparent,#111113 22%)
-}
-.composer{
-  width:min(800px,100%);margin:auto;background:#1b1b1f;
-  border:1px solid #38383f;border-radius:20px;padding:10px 11px 9px;
-  transition:border-color .2s,box-shadow .2s
-}
-.composer:focus-within{
-  border-color:#75678f;box-shadow:0 0 0 3px #c3b3ff0c
-}
-textarea{
-  width:100%;resize:none;min-height:42px;max-height:170px;
-  border:0;outline:0;background:transparent;color:var(--text);
-  padding:8px;line-height:1.55
-}
-textarea::placeholder{color:#85848f}
-.actions{display:flex;align-items:center;gap:7px}
-.actions button{
-  border:0;color:#c2c0ca;font-size:12px;padding:8px 10px;border-radius:9px
-}
-.actions .sub{font-size:11px;margin-left:2px}
-.send{
-  margin-left:auto!important;width:38px;height:38px;padding:0!important;
-  display:grid;place-items:center;background:var(--accent)!important;
-  color:var(--accentText)!important;font-size:21px!important;
-  font-weight:850;border-radius:12px!important
-}
-.send:hover{background:#d4caff!important;box-shadow:0 3px 15px #c3b3ff20}
-.note{text-align:center;font-size:10px;color:#777680;padding-top:9px}
-.studio{width:min(820px,100%);margin:auto;padding:34px 24px 45px}
-.studio h1{font-size:32px;letter-spacing:-1.2px;margin:0 0 5px}
-.studio .intro{margin:0 0 23px;color:var(--muted)}
-.studio textarea{
-  display:block;width:100%;min-height:125px;background:#19191d;
-  border:1px solid #33333b;border-radius:15px;padding:15px;
-  transition:border-color .2s,box-shadow .2s
-}
-.studio textarea:focus{
-  border-color:#75678f;box-shadow:0 0 0 3px #c3b3ff0c
-}
-.studio-controls{display:flex;align-items:center;gap:12px;margin-top:13px}
-.primary{
-  background:var(--accent);color:var(--accentText);border:0;
-  border-radius:11px;padding:11px 15px;font-weight:750;text-align:center
-}
-.primary:hover{background:#d5caff;box-shadow:0 4px 18px #c3b3ff17}
-.status{
-  color:#c9baff;font-size:12px;line-height:1.6;min-height:20px;
-  margin-top:12px;overflow-wrap:anywhere
-}
-#imageResult img{
-  display:block;width:100%;height:auto;border-radius:15px;
-  margin-top:18px;border:1px solid #33333b;animation:view-in .35s ease both
-}
-#imageResult a{display:inline-block;margin-top:12px;text-decoration:none}
-.overlay{
-  position:fixed;inset:0;background:#08080bdc;backdrop-filter:blur(14px);
-  display:flex;align-items:center;justify-content:center;padding:18px;
-  z-index:30;overflow:auto;animation:fade-in .22s ease both
-}
-.card{
-  width:min(420px,100%);background:#1a1a1e;border:1px solid #37363e;
-  border-radius:22px;padding:27px;margin:auto;
-  box-shadow:0 24px 90px #0007;animation:card-in .3s ease both
-}
-.card .brand{justify-content:center;margin-bottom:13px;padding:3px 0 13px;font-size:20px}
-.card h2{text-align:center;font-size:27px;letter-spacing:-1px;margin:7px 0 5px}
-.card p{text-align:center;color:var(--muted);font-size:13px;margin:0 0 15px;line-height:1.6}
-.card label{display:block;font-size:12px;font-weight:650;color:#dedde5;margin:15px 0 7px}
-.card input{
-  width:100%;min-height:46px;padding:11px 12px;background:#111113;
-  border:1px solid #3b3b43;border-radius:11px;color:white;outline:0;
-  transition:border-color .2s,box-shadow .2s
-}
-.card input:focus{border-color:#a996e8;box-shadow:0 0 0 3px #c3b3ff12}
-.card .primary{width:100%;min-height:46px;margin-top:16px}
-.auth-switch{
-  display:flex;gap:5px;padding:4px;background:#111113;
-  border:1px solid #29292f;border-radius:12px;margin:18px 0 10px
-}
-.auth-switch button{
-  flex:1;text-align:center;border:0;padding:9px;border-radius:9px;
-  font-size:13px;color:#aaa8b3
-}
-.auth-switch button.active{background:#302b3a;color:#eee7ff}
-.secondary{width:100%;text-align:center;margin-top:10px}
-.card .small{font-size:11px;line-height:1.5;margin:14px 0 0;color:#85848e}
-.hidden{display:none!important}
-.scrim{
-  display:none;position:fixed;inset:0;background:#0009;z-index:15;
-  opacity:0;pointer-events:none;transition:opacity .22s
-}
-.scrim.open{opacity:1;pointer-events:auto}
-@keyframes view-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
-@keyframes message-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fade-in{from{opacity:0}to{opacity:1}}
-@keyframes card-in{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-@keyframes pulse{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
-@media(max-width:700px){
-  .sidebar{
-    position:fixed;top:0;bottom:0;left:0;width:min(285px,86vw);
-    flex-basis:auto;z-index:25;transform:translateX(-105%);
-    box-shadow:15px 0 50px #0005;padding-top:max(15px,env(safe-area-inset-top))
-  }
-  .sidebar.open{transform:translateX(0)}
-  .scrim{display:block}
-  .top{height:55px;flex-basis:55px;padding:0 11px}
-  .topright{display:none}
-  .welcome{padding:27px 14px 32px}
-  .welcome h1{font-size:34px;letter-spacing:-1.5px}
-  .suggestions{grid-template-columns:1fr;gap:8px;margin-top:24px;max-width:420px}
-  .suggestion{min-height:70px;padding:13px 15px}
-  .messages{padding:20px 11px 28px;gap:19px}
-  .bubble{padding:11px 12px;font-size:14px}
-  .composer-wrap{padding:8px 9px max(9px,env(safe-area-inset-bottom))}
-  .composer{border-radius:18px;padding:8px}
-  .actions button{padding:8px}
-  .actions .sub{display:none}
-  .studio{padding:25px 14px 35px}
-  .studio h1{font-size:29px}
-  .card{padding:24px 20px;border-radius:21px}
-}
-@media(prefers-reduced-motion:reduce){
-  *,*::before,*::after{
-    scroll-behavior:auto!important;animation-duration:.01ms!important;
-    animation-iteration-count:1!important;transition-duration:.01ms!important
-  }
-}
+:root{color-scheme:dark;--bg:#09090b;--panel:#121216;--line:#2b2b32;--text:#f5f5f7;--muted:#a1a1aa;--purple:#a78bfa}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}.hidden{display:none!important}
+#toast{position:fixed;z-index:99;left:50%;bottom:22px;transform:translate(-50%,15px);opacity:0;transition:.2s;background:#25252d;border:1px solid #444451;padding:11px 15px;border-radius:12px;max-width:90vw;text-align:center}#toast.show{opacity:1;transform:translate(-50%,0)}
+.brand{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;letter-spacing:-.7px}.logo{width:36px;height:36px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(140deg,#c4b5fd,#7c3aed);box-shadow:0 5px 25px #8b5cf644;color:white}.grad{background:linear-gradient(100deg,#c4b5fd,#a78bfa,#f0abfc);background-clip:text;-webkit-background-clip:text;color:transparent}
+#auth{min-height:100dvh;display:grid;grid-template-columns:1fr 1fr;background:radial-gradient(ellipse at 15% 30%,#26163d 0,transparent 48%),#09090b}.auth-art{padding:40px;display:flex;flex-direction:column;justify-content:space-between;border-right:1px solid #28232f;overflow:hidden}.art-copy{max-width:500px;margin:auto 0}.art-copy h1{font-size:clamp(42px,5.5vw,68px);line-height:1.03;letter-spacing:-3px}.art-copy p{color:#bcb5c9;max-width:410px;line-height:1.8}.art-foot{font-size:11px;color:#8e879b;letter-spacing:1px}.auth-side{display:grid;place-items:center;padding:25px}.auth-card{width:100%;max-width:380px;animation:rise .4s ease both}.auth-card h2{font-size:30px;letter-spacing:-1px;margin:0 0 6px}.muted{color:var(--muted)}.auth-card>p{margin:0 0 25px;color:var(--muted)}.field{margin:15px 0}.field label,.label{display:block;font-size:12px;color:#d4d4d8;margin-bottom:7px}.field input{width:100%;background:#131317;border:1px solid #34343d;border-radius:11px;padding:13px;color:white;outline:none}.field input:focus,textarea:focus{border-color:var(--purple)!important;box-shadow:0 0 0 3px #a78bfa16}.primary{border:0;border-radius:11px;background:linear-gradient(110deg,#a78bfa,#8b5cf6);color:white;padding:12px 16px;font-weight:700;transition:.2s}.primary:hover{filter:brightness(1.1);transform:translateY(-1px)}.full{width:100%}.link{border:0;background:none;color:#c4b5fd;font-weight:700;padding:4px}.auth-switch{text-align:center;color:var(--muted);margin-top:20px;font-size:12px}.auth-note{font-size:11px;color:#777782;text-align:center;margin-top:20px;line-height:1.7}#authError{color:#fca5a5;font-size:12px;margin-top:12px;white-space:pre-wrap}#authSuccess{color:#86efac;font-size:12px;margin-top:12px}.mobile-brand{display:none}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+#app{height:100dvh;display:flex;overflow:hidden}.sidebar{width:255px;flex-shrink:0;background:#0d0d10;border-right:1px solid var(--line);padding:17px 13px;display:flex;flex-direction:column;transition:transform .22s}.sidebar .brand{padding:4px 6px 22px}.new-chat{display:flex;gap:9px;align-items:center;text-align:left;background:#18181d;color:white;border:1px solid #303038;border-radius:11px;padding:11px;width:100%}.section-label{font-size:10px;letter-spacing:1px;color:#777782;text-transform:uppercase;padding:23px 8px 9px}.side-btn{border:0;background:none;color:#c4c4cc;padding:10px;width:100%;border-radius:9px;text-align:left;font-size:12px}.side-btn:hover,.history-item:hover{background:#202027}.history{flex:1;overflow:auto}.history-item{padding:9px;border-radius:8px;font-size:12px;color:#bcbcc5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}.history-item.active{background:#202027;color:white}.side-bottom{border-top:1px solid #292930;padding-top:9px}.profile{display:flex;align-items:center;gap:9px;padding:10px 6px}.avatar{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(140deg,#a78bfa,#6d28d9);font-weight:700}.email{font-size:11px;color:#aaa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.main{min-width:0;flex:1;display:flex;flex-direction:column}.topbar{height:59px;flex-shrink:0;border-bottom:1px solid #24242b;display:flex;align-items:center;justify-content:space-between;padding:0 22px}.top-title{font-weight:700}.top-right{display:flex;gap:8px;align-items:center}.pill{border:1px solid #303038;border-radius:20px;padding:6px 10px;color:#c4c4cc;font-size:11px}.menu{display:none}
+.view{display:none;flex:1;min-height:0;flex-direction:column}.view.active{display:flex}.scroll{flex:1;overflow:auto;scroll-behavior:smooth}.welcome{max-width:790px;margin:auto;padding:8vh 24px 30px;animation:rise .4s ease both}.mark{width:50px;height:50px;display:grid;place-items:center;border:1px solid #4c3b70;border-radius:17px;background:#1d1628;color:#c4b5fd;font-size:24px;margin-bottom:23px}.welcome h1{font-size:clamp(30px,4vw,44px);line-height:1.1;letter-spacing:-2px;margin:0 0 12px}.welcome p{color:var(--muted);line-height:1.8}.suggestions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:28px}.suggestion{background:#121216;border:1px solid #2b2b32;border-radius:13px;padding:15px;text-align:left;color:#eee;transition:.2s}.suggestion:hover{border-color:#7960a4;transform:translateY(-2px)}.suggestion b{display:block;font-size:12px;margin-bottom:6px}.suggestion span{font-size:11px;color:#9999a4;line-height:1.6}
+.messages{max-width:790px;width:100%;margin:auto;padding:24px}.message{display:flex;gap:12px;margin-bottom:25px;animation:rise .2s ease}.msg-avatar{width:30px;height:30px;flex-shrink:0;border-radius:10px;background:#25202e;color:#c4b5fd;display:grid;place-items:center;font-weight:700}.message.user .msg-avatar{background:#29292f;color:white}.msg-body{min-width:0;flex:1}.msg-name{font-size:11px;color:#aaa;margin:3px 0 8px;font-weight:700}.msg-text{font-size:14px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere}.typing{display:flex;gap:5px;padding:10px 0}.typing i{width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:bounce 1s infinite}.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}@keyframes bounce{30%{transform:translateY(-5px);opacity:1}0%,60%,100%{opacity:.5}}
+.composer-area{padding:12px 18px max(14px,env(safe-area-inset-bottom));background:linear-gradient(0deg,#09090b 80%,transparent)}.composer{max-width:790px;margin:auto;background:#141418;border:1px solid #373740;border-radius:16px;padding:10px 12px}.composer:focus-within{border-color:#8064ad}#prompt{width:100%;min-height:30px;max-height:150px;resize:none;background:none;border:0;outline:none;color:white;padding:5px;font-size:14px;line-height:1.6}#prompt::placeholder{color:#777782}.composer-bottom{display:flex;align-items:center;justify-content:space-between}.hint{font-size:10px;color:#777782}.send{width:34px;height:34px;border:0;border-radius:10px;background:#a78bfa;color:#171020;font-size:20px;font-weight:800}.disclaimer{text-align:center;font-size:10px;color:#686872;margin-top:9px}
+.studio{max-width:850px;width:100%;margin:auto;padding:5vh 24px 35px}.studio h1{font-size:36px;letter-spacing:-1.5px;margin:0 0 8px}.studio>p{color:var(--muted);line-height:1.7;margin-bottom:24px}.tabs{display:flex;gap:7px;background:#121216;border:1px solid #292930;border-radius:12px;padding:5px;width:max-content;margin-bottom:18px}.tab{border:0;border-radius:8px;padding:9px 14px;color:#aaa;background:transparent;font-size:12px}.tab.active{background:#302542;color:#e9ddff}.studio-card{background:#121216;border:1px solid #2d2d34;border-radius:16px;padding:18px}.studio-card textarea{width:100%;min-height:105px;resize:vertical;background:#0b0b0e;border:1px solid #303038;border-radius:11px;padding:12px;color:white;outline:none;line-height:1.7}.studio-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:13px}.output{margin-top:20px}.output img,.output video{display:block;width:100%;max-height:600px;object-fit:contain;background:#08080a;border:1px solid #303038;border-radius:13px}.output a{display:inline-block;color:#c4b5fd;font-size:12px;margin-top:10px;margin-right:15px}.status{font-size:12px;color:#aaa;line-height:1.7;margin-top:12px}.small-note{font-size:11px;color:#777782;line-height:1.7;margin-top:12px}
+@media(max-width:740px){#auth{grid-template-columns:1fr}.auth-art{display:none}.mobile-brand{display:flex;margin-bottom:32px}.auth-side{padding:25px}.sidebar{position:fixed;z-index:20;top:0;bottom:0;left:0;transform:translateX(-105%);box-shadow:15px 0 50px #0009}.sidebar.open{transform:translateX(0)}.menu{display:grid;place-items:center;width:34px;height:34px;border:1px solid #303038;background:#151519;color:white;border-radius:9px;margin-right:8px}.topbar{height:56px;padding:0 13px}.top-title{display:flex;align-items:center}.pill{display:none}.welcome{padding:7vh 18px 24px}.welcome h1{font-size:32px}.suggestions{grid-template-columns:1fr}.messages{padding:20px 16px}.composer-area{padding:10px 11px max(12px,env(safe-area-inset-bottom))}.studio{padding:5vh 16px 25px}.studio h1{font-size:32px}.studio-actions{align-items:flex-start;flex-direction:column}.studio-actions button{width:100%}}
 </style>
 </head>
 <body>
-<div class="app">
- <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-  <div class="brand"><div class="logo">V</div><span>VYRO AI</span></div>
-  <button class="new" id="new">＋ &nbsp;New chat</button>
-  <button class="nav active" id="chatTab"><span class="nav-icon">◫</span>Chat</button>
-  <button class="nav" id="studioTab"><span class="nav-icon">✧</span>Image Studio</button>
-  <div class="label">RECENT CHATS</div>
-  <div class="history" id="history"></div>
-  <div class="bottom">
-   <div class="profile" id="profile">Not signed in</div>
-   <button id="logout">↪ &nbsp;Sign out</button>
-  </div>
- </aside>
- <div class="scrim" id="scrim"></div>
- <main class="main">
-  <header class="top">
-   <button id="menu" aria-label="Open menu">☰</button>
-   <div class="topname" id="pageTitle">VYRO AI</div>
-   <div class="topright">A little space to think</div>
-  </header>
-  <section class="content" id="content">
-   <div class="view active" id="chatView">
-    <div class="welcome" id="welcome">
-     <div class="logo welcome-mark">V</div>
-     <h1>What’s on your mind<br><span class="accent">today?</span></h1>
-     <p class="sub">A place to think things through, make things, and explore.</p>
-     <div class="suggestions">
-      <button class="suggestion" data-prompt="Explain a difficult topic in simple terms"><strong>▤ &nbsp;Learn something</strong><span>Make a complicated idea feel simple</span></button>
-      <button class="suggestion" data-prompt="Help me brainstorm creative ideas"><strong>✧ &nbsp;Brainstorm ideas</strong><span>Start with a thought and see where it goes</span></button>
-      <button class="suggestion" data-prompt="Help me write a message"><strong>✎ &nbsp;Write something</strong><span>Find the right words for what you mean</span></button>
-      <button class="suggestion" data-prompt="Make a step-by-step learning plan"><strong>⌁ &nbsp;Make a plan</strong><span>Turn a big goal into smaller steps</span></button>
-     </div>
-    </div>
-    <div class="messages" id="messages" hidden></div>
-   </div>
-   <div class="view" id="studioView">
-    <div class="studio">
-     <h1 class="accent">Image Studio</h1>
-     <p class="intro">Give an idea a visual shape. Describe what you want to see.</p>
-     <textarea id="imagePrompt" placeholder="A quiet little bookshop on a rainy evening, warm window light…" aria-label="Describe an image"></textarea>
-     <div class="studio-controls">
-      <button class="primary" id="generate">✧ &nbsp;Generate image</button>
-      <span class="sub" style="font-size:12px">Your imagination, in pixels.</span>
-     </div>
-     <div class="status" id="imageStatus" role="status" aria-live="polite"></div>
-     <div id="imageResult"></div>
-    </div>
-   </div>
-  </section>
-  <div class="composer-wrap" id="composerWrap">
-   <div class="composer">
-    <textarea id="prompt" rows="1" placeholder="Message VYRO AI…" aria-label="Message VYRO AI"></textarea>
-    <div class="actions">
-     <button id="toStudio">▧ &nbsp;Image Studio</button>
-     <span class="sub">AI can make mistakes</span>
-     <button class="send" id="send" aria-label="Send message">↑</button>
-    </div>
-   </div>
-   <div class="note">VYRO AI · Made to help you think, create, and explore</div>
-  </div>
- </main>
-</div>
-
-<div class="overlay" id="login">
- <div class="card">
-  <div class="brand"><div class="logo">V</div><span>VYRO AI</span></div>
-  <h2 id="authTitle">Welcome back</h2>
-  <p id="authSubtitle">Sign in or create your account with email.</p>
-  <div class="auth-switch">
-   <button type="button" id="signInTab" class="active">Sign in</button>
-   <button type="button" id="signUpTab">Create account</button>
-  </div>
-  <form id="loginForm">
-   <label for="email">Email address</label>
-   <input id="email" type="email" autocomplete="email" placeholder="you@example.com" required>
-   <label for="password">Password</label>
-   <input id="password" type="password" autocomplete="current-password" minlength="6" placeholder="At least 6 characters" required>
-   <button class="primary" id="loginButton" type="submit">Sign in</button>
-  </form>
-  <button type="button" class="secondary hidden" id="resend">Resend verification email</button>
-  <div class="status" id="loginStatus" role="status" aria-live="polite"></div>
-  <p class="small">New accounts must verify their email before signing in. Check your inbox and spam folder.</p>
- </div>
-</div>
-
+<div id="toast"></div>
+<section id="auth">
+<div class="auth-art"><div class="brand"><div class="logo">V</div>vyro<span class="grad">.</span></div><div class="art-copy"><h1>Ideas become<br><span class="grad">something more.</span></h1><p>Your personal AI space to think, create, explore, and turn those late-night ideas into something real.</p></div><div class="art-foot">VYRO AI · YOUR SPACE TO CREATE</div></div>
+<div class="auth-side"><div class="auth-card"><div class="brand mobile-brand"><div class="logo">V</div>vyro<span class="grad">.</span></div><h2 id="authTitle">Welcome back</h2><p id="authSubtitle">Sign in to continue where your ideas left off.</p>
+<form id="authForm"><div class="field"><label for="email">Email address</label><input id="email" type="email" placeholder="you@example.com" autocomplete="email" required></div><div class="field"><label for="password">Password</label><input id="password" type="password" placeholder="At least 6 characters" minlength="6" autocomplete="current-password" required></div><button class="primary full" id="authSubmit" type="submit">Sign in →</button></form>
+<div id="authError"></div><div id="authSuccess"></div><div class="auth-switch"><span id="switchText">New to Vyro?</span> <button class="link" id="switchAuth" type="button">Create an account</button></div><div class="auth-note">Your account is protected by Supabase authentication.</div></div></div>
+</section>
+<section id="app" class="hidden">
+<aside class="sidebar" id="sidebar"><div class="brand"><div class="logo">V</div>vyro<span class="grad">.</span></div><button class="new-chat" id="newChat">＋ &nbsp; New conversation</button><div class="section-label">Workspace</div><button class="side-btn" id="chatNav">✳ &nbsp; AI Chat</button><button class="side-btn" id="studioNav">▧ &nbsp; Image Studio</button><div class="section-label">Recent conversations</div><div class="history" id="history"></div><div class="side-bottom"><button class="side-btn" id="clearHistory">⌫ &nbsp; Clear history</button><div class="profile"><div class="avatar" id="avatar">V</div><div style="min-width:0;flex:1"><div style="font-size:12px;font-weight:700;margin-bottom:3px">Your account</div><div class="email" id="userEmail"></div></div></div><button class="side-btn" id="signOut">↪ &nbsp; Sign out</button></div></aside>
+<main class="main"><header class="topbar"><div class="top-title"><button class="menu" id="menuBtn" aria-label="Open menu">☰</button><span id="pageTitle">AI Chat</span></div><div class="top-right"><span class="pill">✦ Vyro AI</span><span class="pill" style="color:#86efac">● Online</span></div></header>
+<section class="view active" id="chatView"><div class="scroll" id="chatScroll"><div class="welcome" id="welcome"><div class="mark">✳</div><h1>What’s on your <span class="grad">mind?</span></h1><p>Ask anything, explore an idea, or just start somewhere. We’ll figure it out together.</p><div class="suggestions"><button class="suggestion" data-prompt="Help me build a website from scratch"><b>⌘ Build something</b><span>Turn an idea into a working website.</span></button><button class="suggestion" data-prompt="Explain a difficult topic in a simple way"><b>✧ Learn something</b><span>Make complicated things easier to understand.</span></button><button class="suggestion" data-prompt="Give me five creative project ideas I can build"><b>◈ Get inspired</b><span>Find your next interesting project.</span></button><button class="suggestion" data-prompt="Help me write a clear plan for my next goal"><b>↗ Make a plan</b><span>Break a big goal into steps.</span></button></div></div><div class="messages hidden" id="messages"></div></div>
+<div class="composer-area"><div class="composer"><textarea id="prompt" rows="1" placeholder="Message Vyro..." aria-label="Message Vyro"></textarea><div class="composer-bottom"><span class="hint">Enter to send · Shift + Enter for a new line</span><button class="send" id="sendBtn" aria-label="Send message">↑</button></div></div><div class="disclaimer">Vyro can make mistakes. Check important information.</div></div></section>
+<section class="view" id="studioView"><div class="scroll"><div class="studio"><div class="mark">✧</div><h1>Creative <span class="grad">Studio</span></h1><p>Create an image, then turn it into a short animated video with camera motion.</p><div class="tabs"><button class="tab active" id="imageTab">▧ Image</button><button class="tab" id="videoTab">▶ Animated video</button></div><div class="studio-card"><label class="label" id="studioLabel" for="imagePrompt">Describe your image</label><textarea id="imagePrompt" placeholder="A cinematic futuristic city at night, purple neon lights, misty rain, atmospheric digital art..."></textarea><div class="studio-actions"><span class="muted" style="font-size:11px" id="studioHint">Generate a still image using Workers AI.</span><button class="primary" id="generateBtn">Generate image ↗</button></div></div><div class="output" id="imageOutput"></div><div class="status" id="imageStatus"></div><div class="small-note" id="videoNote">Video mode generates an image first, then animates it into a downloadable WebM clip. This is browser-generated animation, not full AI text-to-video.</div></div></div></section>
+</main></section>
 <script>
-(()=>{
 const $=id=>document.getElementById(id);
-let sb=null,session=null,busy=false,chats=[],chatId=null;
-let authMode='signin',pendingVerificationEmail='';
-const key='vyro_chat_history_v1';
-
-function showStatus(t){$('loginStatus').textContent=t}
-
-function setAuthMode(mode){
-  authMode=mode;
-  const signup=mode==='signup';
-  $('authTitle').textContent=signup?'Create your account':'Welcome back';
-  $('authSubtitle').textContent=signup?'Sign up with your email and a password.':'Sign in securely with your email and password.';
-  $('loginButton').textContent=signup?'Create account':'Sign in';
-  $('signInTab').classList.toggle('active',!signup);
-  $('signUpTab').classList.toggle('active',signup);
-  $('password').autocomplete=signup?'new-password':'current-password';
-  $('resend').classList.add('hidden');
-  showStatus('');
-}
-
-function callbackMessage(){
-  const hash=new URLSearchParams(location.hash.slice(1));
-  const params=new URLSearchParams(location.search);
-  const err=hash.get('error_description')||params.get('error_description');
-  if(err){
-    showStatus(err.replace(/\+/g,' '));
-    $('login').style.display='flex';
-    history.replaceState(null,'',location.pathname);
-    return true;
-  }
-  if(hash.get('access_token')||params.get('token_hash')){
-    showStatus('Checking your verification link…');
-  }
-  return false;
-}
-
-async function init(){
-  try{
-    const r=await fetch('/api/config',{cache:'no-store'});
-    const c=await r.json();
-    if(!r.ok||!c.supabaseUrl||!c.supabaseAnonKey){
-      throw Error('Configure SUPABASE_URL and SUPABASE_ANON_KEY in Cloudflare Worker settings.');
-    }
-    sb=window.supabase.createClient(c.supabaseUrl,c.supabaseAnonKey,{
-      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
-    });
-    const {data,error}=await sb.auth.getSession();
-    if(error)throw error;
-    applySession(data.session);
-    sb.auth.onAuthStateChange((event,s)=>{
-      applySession(s);
-      if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED'){
-        if(location.hash.includes('access_token')||location.search.includes('token_hash')){
-          history.replaceState(null,'',location.pathname);
-          showStatus('Email verified. You are signed in!');
-        }
-      }
-    });
-    if(!data.session&&callbackMessage())return;
-    if(!data.session&&location.hash.includes('access_token')){
-      const {data:sd,error:se}=await sb.auth.getSession();
-      if(se)showStatus(se.message);
-      else if(sd.session)applySession(sd.session);
-    }
-  }catch(e){
-    $('login').style.display='flex';
-    showStatus(e.message||'Could not initialize sign-in.');
-  }
-}
-
-function applySession(s){
-  session=s;
-  $('login').style.display=s?'none':'flex';
-  $('profile').textContent=s?.user?.email||'Not signed in';
-  if(s){
-    load();
-    if(!chatId&&chats.length)chatId=chats[chats.length-1].id;
-    render();
-  }
-}
-
-function load(){
-  try{
-    chats=JSON.parse(localStorage.getItem(key)||'[]');
-    if(!Array.isArray(chats))chats=[];
-  }catch{chats=[]}
-  renderHistory();
-}
-
-function save(){
-  try{localStorage.setItem(key,JSON.stringify(chats))}catch{}
-  renderHistory();
-}
-
-function renderHistory(){
-  const el=$('history');
-  el.replaceChildren();
-  [...chats].reverse().forEach(c=>{
-    const b=document.createElement('button');
-    b.textContent=c.title||'New chat';
-    b.onclick=()=>{
-      chatId=c.id;
-      render();
-      showChat();
-    };
-    el.append(b);
-  });
-}
-
-function current(){return chats.find(c=>c.id===chatId)}
-
-function fresh(){
-  chatId=String(Date.now());
-  chats.push({id:chatId,title:'New chat',messages:[]});
-  save();
-  showChat();
-  render();
-  $('prompt').focus();
-}
-
-function closeMenu(){
-  $('sidebar').classList.remove('open');
-  $('scrim').classList.remove('open');
-}
-
-function showChat(){
-  $('chatView').classList.add('active');
-  $('studioView').classList.remove('active');
-  $('composerWrap').style.display='block';
-  $('pageTitle').textContent='VYRO AI';
-  $('chatTab').classList.add('active');
-  $('studioTab').classList.remove('active');
-  closeMenu();
-}
-
-function showStudio(){
-  $('chatView').classList.remove('active');
-  $('studioView').classList.add('active');
-  $('composerWrap').style.display='none';
-  $('pageTitle').textContent='Image Studio';
-  $('studioTab').classList.add('active');
-  $('chatTab').classList.remove('active');
-  closeMenu();
-}
-
-function render(){
-  const c=current(),el=$('messages');
-  const has=!!(c&&c.messages.length);
-  $('welcome').style.display=has?'none':'flex';
-  el.hidden=!has;
-  el.replaceChildren();
-  if(!has)return;
-
-  c.messages.forEach(m=>{
-    const row=document.createElement('div');
-    row.className='message '+m.role;
-    const av=document.createElement('div');
-    av.className='avatar';
-    av.textContent=m.role==='user'?'Y':'V';
-    const b=document.createElement('div');
-    b.className='bubble';
-    b.textContent=m.content;
-    row.append(av,b);
-    el.append(row);
-  });
-  requestAnimationFrame(()=>{$('content').scrollTop=$('content').scrollHeight});
-}
-
-function add(role,content){
-  let c=current();
-  if(!c){
-    chatId=String(Date.now());
-    chats.push({id:chatId,title:'New chat',messages:[]});
-    c=current();
-  }
-  c.messages.push({role,content});
-  if(role==='user'&&c.title==='New chat')c.title=content.slice(0,35);
-  save();
-  render();
-}
-
-async function send(prefill){
-  if(busy)return;
-  const text=(prefill??$('prompt').value).trim();
-  if(!text)return;
-  if(!session){$('login').style.display='flex';return}
-  if(!current())fresh();
-
-  $('prompt').value='';
-  $('prompt').style.height='auto';
-  add('user',text);
-  busy=true;
-  $('send').disabled=true;
-
-  const wait=document.createElement('div');
-  wait.className='thinking';
-  wait.innerHTML='<span>VYRO is thinking</span><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
-  $('messages').append(wait);
-
-  try{
-    const r=await fetch('/api/chat',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer '+session.access_token
-      },
-      body:JSON.stringify({messages:current().messages})
-    });
-    const d=await r.json();
-    if(!r.ok)throw Error(d.error||'Request failed');
-    wait.remove();
-    add('assistant',d.response||d.text||'No response received.');
-  }catch(e){
-    wait.remove();
-    add('assistant','Error: '+e.message);
-  }finally{
-    busy=false;
-    $('send').disabled=false;
-  }
-}
-
-async function generate(){
-  const prompt=$('imagePrompt').value.trim();
-  if(!prompt){$('imageStatus').textContent='Describe your image first.';return}
-  if(!session){$('login').style.display='flex';return}
-
-  $('generate').disabled=true;
-  $('imageStatus').textContent='Creating your image…';
-  $('imageResult').replaceChildren();
-
-  try{
-    const r=await fetch('/api/image',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer '+session.access_token
-      },
-      body:JSON.stringify({prompt})
-    });
-
-    if(!r.ok){
-      let d={};
-      try{d=await r.json()}catch{}
-      throw Error(d.error||'Generation failed');
-    }
-
-    const blob=await r.blob();
-    if(!blob.type.startsWith('image/')){
-      throw Error('The image service returned an unexpected response.');
-    }
-
-    const url=URL.createObjectURL(blob);
-    const img=document.createElement('img');
-    img.src=url;
-    img.alt=prompt;
-
-    const a=document.createElement('a');
-    a.href=url;
-    a.download='vyro-image.png';
-    a.textContent='↓  Download image';
-    a.className='primary';
-
-    $('imageResult').append(img,a);
-    $('imageStatus').textContent='Image ready.';
-  }catch(e){
-    $('imageStatus').textContent=e.message||'Could not generate the image.';
-  }finally{
-    $('generate').disabled=false;
-  }
-}
-
-$('loginForm').onsubmit=async e=>{
-  e.preventDefault();
-  if(!sb)return showStatus('Sign-in is still loading. Try again in a moment.');
-
-  const email=$('email').value.trim();
-  const password=$('password').value;
-
-  $('loginButton').disabled=true;
-  $('resend').classList.add('hidden');
-  showStatus(authMode==='signup'?'Creating account…':'Signing in…');
-
-  try{
-    if(authMode==='signup'){
-      const {data,error}=await sb.auth.signUp({
-        email,password,
-        options:{emailRedirectTo:location.origin+'/'}
-      });
-      if(error)throw error;
-
-      if(data.session){
-        applySession(data.session);
-        showStatus('Account created and signed in.');
-      }else{
-        pendingVerificationEmail=email;
-        $('resend').classList.remove('hidden');
-        showStatus('Account created. Open the verification email we sent, then return here to sign in. Check spam if it is missing.');
-      }
-    }else{
-      const {data,error}=await sb.auth.signInWithPassword({email,password});
-      if(error)throw error;
-      if(data.session){
-        applySession(data.session);
-        showStatus('Signed in successfully.');
-      }
-    }
-  }catch(e){
-    const msg=e.message||'Authentication failed.';
-    showStatus(msg);
-    if(/confirm|not confirmed|email not verified/i.test(msg)){
-      pendingVerificationEmail=email;
-      $('resend').classList.remove('hidden');
-    }
-  }finally{
-    $('loginButton').disabled=false;
-  }
-};
-
-$('resend').onclick=async()=>{
-  if(!sb||!pendingVerificationEmail){
-    showStatus('Enter the email address you used to sign up.');
-    return;
-  }
-
-  $('resend').disabled=true;
-  showStatus('Sending another verification email…');
-
-  try{
-    const {error}=await sb.auth.resend({
-      type:'signup',
-      email:pendingVerificationEmail,
-      options:{emailRedirectTo:location.origin+'/'}
-    });
-    if(error)throw error;
-    showStatus('Verification email requested. Check your inbox and spam folder.');
-  }catch(e){
-    showStatus(e.message||'Could not resend the email.');
-  }finally{
-    $('resend').disabled=false;
-  }
-};
-
-$('signInTab').onclick=()=>setAuthMode('signin');
-$('signUpTab').onclick=()=>setAuthMode('signup');
-$('send').onclick=()=>send();
-
-$('prompt').onkeydown=e=>{
-  if(e.key==='Enter'&&!e.shiftKey){
-    e.preventDefault();
-    send();
-  }
-};
-
-$('prompt').addEventListener('input',()=>{
-  const el=$('prompt');
-  el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight,170)+'px';
-});
-
-$('imagePrompt').addEventListener('input',()=>{
-  const el=$('imagePrompt');
-  el.style.height='auto';
-  el.style.height=Math.min(Math.max(el.scrollHeight,125),260)+'px';
-});
-
-$('new').onclick=fresh;
-$('menu').onclick=()=>{
-  const open=!$('sidebar').classList.contains('open');
-  $('sidebar').classList.toggle('open',open);
-  $('scrim').classList.toggle('open',open);
-};
-$('scrim').onclick=closeMenu;
-$('chatTab').onclick=showChat;
-$('studioTab').onclick=showStudio;
-$('toStudio').onclick=showStudio;
-$('generate').onclick=generate;
-
-document.querySelectorAll('[data-prompt]').forEach(b=>{
-  b.onclick=()=>send(b.dataset.prompt);
-});
-
-$('logout').onclick=async()=>{
-  if(sb)await sb.auth.signOut();
-  session=null;
-  $('profile').textContent='Not signed in';
-  $('login').style.display='flex';
-  setAuthMode('signin');
-};
-
+let sb=null,user=null,signup=false,busy=false,items=[],activeId=null,messages=[],studioMode='image';
+function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(window._toast);window._toast=setTimeout(()=>$('toast').classList.remove('show'),3000)}
+function authMessage(err,suc){$('authError').textContent=err||'';$('authSuccess').textContent=suc||''}
+function switchMode(v){signup=v;$('authTitle').textContent=v?'Create your account':'Welcome back';$('authSubtitle').textContent=v?'A new space for all your ideas.':'Sign in to continue where your ideas left off.';$('authSubmit').textContent=v?'Create account →':'Sign in →';$('switchText').textContent=v?'Already have an account?':'New to Vyro?';$('switchAuth').textContent=v?'Sign in':'Create an account';$('password').autocomplete=v?'new-password':'current-password';authMessage('','')}
+$('switchAuth').onclick=()=>switchMode(!signup);
+async function init(){try{const r=await fetch('/api/config');const c=await r.json();if(!r.ok||!c.supabaseUrl||!c.supabaseAnonKey)throw Error(c.error||'Supabase configuration is missing.');sb=window.supabase.createClient(c.supabaseUrl,c.supabaseAnonKey);const s=await sb.auth.getSession();if(s.data.session)applySession(s.data.session);sb.auth.onAuthStateChange((_e,sess)=>{if(sess&&!user)applySession(sess);else if(!sess&&user)showAuth()})}catch(e){authMessage(e.message||'Could not connect. Refresh and try again.','')}}
+$('authForm').onsubmit=async e=>{e.preventDefault();if(!sb){authMessage('Authentication is not ready. Refresh the page.','');return}const b=$('authSubmit');b.disabled=true;b.textContent=signup?'Creating account...':'Signing in...';authMessage('','');try{const email=$('email').value.trim(),password=$('password').value;if(signup){const x=await sb.auth.signUp({email,password,options:{emailRedirectTo:location.origin}});if(x.error)throw x.error;if(x.data.session)applySession(x.data.session);else authMessage('','Account created! Check your email for the verification link, then sign in.')}else{const x=await sb.auth.signInWithPassword({email,password});if(x.error)throw x.error;applySession(x.data.session)}}catch(e){authMessage(e.message||'Authentication failed.','')}finally{b.disabled=false;b.textContent=signup?'Create account →':'Sign in →'}};
+function applySession(s){user=s.user;$('auth').classList.add('hidden');$('app').classList.remove('hidden');$('userEmail').textContent=user.email||'';$('avatar').textContent=(user.email||'V')[0].toUpperCase();loadHistory()}
+function showAuth(){user=null;$('app').classList.add('hidden');$('auth').classList.remove('hidden')}
+function storageKey(){return 'vyro_history_'+(user?.id||'guest')}
+function loadHistory(){try{items=JSON.parse(localStorage.getItem(storageKey())||'[]')}catch{items=[]}drawHistory();freshChat()}
+function saveHistory(){try{localStorage.setItem(storageKey(),JSON.stringify(items.slice(0,40)))}catch{}drawHistory()}
+function drawHistory(){$('history').innerHTML='';items.forEach(it=>{const d=document.createElement('div');d.className='history-item'+(it.id===activeId?' active':'');d.textContent=it.title||'New conversation';d.onclick=()=>openHistory(it.id);$('history').append(d)})}
+function freshChat(){activeId=Date.now().toString();messages=[];$('messages').innerHTML='';$('messages').classList.add('hidden');$('welcome').classList.remove('hidden');$('pageTitle').textContent='AI Chat';drawHistory();closeSidebar()}
+function openHistory(id){const it=items.find(x=>x.id===id);if(!it)return;activeId=id;messages=it.messages||[];$('messages').innerHTML='';messages.forEach(m=>addMessage(m.role,m.content,false));$('welcome').classList.toggle('hidden',messages.length>0);$('messages').classList.toggle('hidden',!messages.length);$('pageTitle').textContent=it.title||'AI Chat';drawHistory();closeSidebar()}
+function persist(){if(!messages.length)return;let it=items.find(x=>x.id===activeId);if(!it){it={id:activeId,title:(messages.find(m=>m.role==='user')?.content||'New conversation').slice(0,42),messages:[]};items.unshift(it)}it.messages=messages.slice(-60);saveHistory()}
+function closeSidebar(){$('sidebar').classList.remove('open')}
+function showView(which){const chat=which==='chat';$('chatView').classList.toggle('active',chat);$('studioView').classList.toggle('active',!chat);$('pageTitle').textContent=chat?'AI Chat':'Image Studio';$('chatNav').style.background=chat?'#202027':'transparent';$('studioNav').style.background=chat?'transparent':'#202027';closeSidebar()}
+$('newChat').onclick=freshChat;$('chatNav').onclick=()=>showView('chat');$('studioNav').onclick=()=>showView('studio');$('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
+$('clearHistory').onclick=()=>{if(confirm('Clear all saved conversations on this device?')){items=[];saveHistory();freshChat();toast('History cleared')}};
+$('signOut').onclick=async()=>{if(sb)await sb.auth.signOut();showAuth()};
+document.querySelectorAll('.suggestion').forEach(b=>b.onclick=()=>{showView('chat');$('prompt').value=b.dataset.prompt;sendMessage()});
+function addMessage(role,content,scroll=true){$('welcome').classList.add('hidden');$('messages').classList.remove('hidden');const a=document.createElement('article');a.className='message '+(role==='user'?'user':'assistant');const av=document.createElement('div');av.className='msg-avatar';av.textContent=role==='user'?(user?.email||'U')[0].toUpperCase():'✳';const body=document.createElement('div');body.className='msg-body';const n=document.createElement('div');n.className='msg-name';n.textContent=role==='user'?'You':'Vyro';const t=document.createElement('div');t.className='msg-text';t.textContent=content;body.append(n,t);a.append(av,body);$('messages').append(a);if(scroll)$('chatScroll').scrollTop=$('chatScroll').scrollHeight;return{article:a,text:t}}
+function addTyping(){const x=addMessage('assistant','');x.text.innerHTML='<div class="typing"><i></i><i></i><i></i></div>';return x}
+async function sendMessage(){if(busy)return;const input=$('prompt'),content=input.value.trim();if(!content)return;if(!user){toast('Please sign in again');return}busy=true;$('sendBtn').disabled=true;input.value='';input.style.height='auto';showView('chat');messages.push({role:'user',content});addMessage('user',content);const wait=addTyping();try{const s=await sb.auth.getSession();if(!s.data.session)throw Error('Session expired. Sign in again.');const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.data.session.access_token},body:JSON.stringify({messages:messages.slice(-20)})});const d=await r.json();if(!r.ok)throw Error(d.error||'AI request failed');if(!d.reply)throw Error('AI returned an empty response');wait.text.textContent=d.reply;messages.push({role:'assistant',content:d.reply});persist();$('pageTitle').textContent=items.find(x=>x.id===activeId)?.title||'AI Chat'}catch(e){wait.article.remove();addMessage('assistant','Sorry, I couldn’t complete that request. '+(e.message||''));messages.pop();toast(e.message||'Request failed')}finally{busy=false;$('sendBtn').disabled=false;$('chatScroll').scrollTop=$('chatScroll').scrollHeight}}
+$('sendBtn').onclick=sendMessage;$('prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});$('prompt').addEventListener('input',()=>{$('prompt').style.height='auto';$('prompt').style.height=Math.min($('prompt').scrollHeight,150)+'px'});
+function setStudioMode(mode){studioMode=mode;$('imageTab').classList.toggle('active',mode==='image');$('videoTab').classList.toggle('active',mode==='video');$('studioLabel').textContent=mode==='image'?'Describe your image':'Describe the scene for your animated video';$('imagePrompt').placeholder=mode==='image'?'A cinematic futuristic city at night, purple neon lights...':'A dreamy floating island above the clouds, glowing sunset, slow cinematic camera movement...';$('studioHint').textContent=mode==='image'?'Generate a still image using Workers AI.':'Creates an image and animates it into a short WebM video.';$('generateBtn').textContent=mode==='image'?'Generate image ↗':'Create video ▶';$('videoNote').textContent=mode==='video'?'This creates a short animated video from an AI-generated image using browser canvas. It is not full AI text-to-video.':'Tip: describe subject, lighting, colors, mood, and visual style for better results.'}
+$('imageTab').onclick=()=>setStudioMode('image');$('videoTab').onclick=()=>setStudioMode('video');
+async function requestImage(prompt){const s=await sb.auth.getSession();if(!s.data.session)throw Error('Session expired. Sign in again.');const r=await fetch('/api/image',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.data.session.access_token},body:JSON.stringify({prompt})});const d=await r.json();if(!r.ok)throw Error((d.error||'Image generation failed')+(d.details?': '+d.details:''));if(!d.image)throw Error('No image was returned');return d.image}
+$('generateBtn').onclick=async()=>{if(busy)return;const prompt=$('imagePrompt').value.trim();if(!prompt){toast('Describe what you want first');return}if(!user){toast('Please sign in again');return}busy=true;const b=$('generateBtn');b.disabled=true;b.textContent=studioMode==='video'?'Creating video...':'Generating...';$('imageOutput').innerHTML='';$('imageStatus').textContent='Generating your image. Please wait...';try{const image=await requestImage(prompt);if(studioMode==='image'){const img=document.createElement('img');img.alt=prompt;img.src=image;$('imageOutput').append(img);const link=document.createElement('a');link.href=image;link.download='vyro-image.png';link.textContent='Download image';$('imageOutput').append(link);$('imageStatus').textContent='Your image is ready.'}else{$('imageStatus').textContent='Image ready. Animating your video...';await makeVideo(image);$('imageStatus').textContent='Your animated video is ready. Play it or download it below.'}}catch(e){$('imageStatus').textContent='Could not create '+(studioMode==='video'?'video':'image')+': '+(e.message||'Please try again')}finally{busy=false;b.disabled=false;b.textContent=studioMode==='video'?'Create video ▶':'Generate image ↗'}};
+function makeVideo(src){return new Promise((resolve,reject)=>{if(!HTMLCanvasElement.prototype.captureStream||typeof MediaRecorder==='undefined'){reject(Error('Video recording is not supported in this browser. Try a newer Chrome version.'));return}const img=new Image();img.onload=()=>{let stream,recorder;try{const canvas=document.createElement('canvas');canvas.width=720;canvas.height=720;const ctx=canvas.getContext('2d');stream=canvas.captureStream(24);let mime='video/webm;codecs=vp9';if(!MediaRecorder.isTypeSupported(mime))mime='video/webm';recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2500000});const chunks=[];recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};recorder.onerror=()=>reject(Error('Browser video recording failed'));recorder.onstop=()=>{stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:'video/webm'});const url=URL.createObjectURL(blob);const video=document.createElement('video');video.controls=true;video.playsInline=true;video.src=url;const link=document.createElement('a');link.href=url;link.download='vyro-original-video.webm';link.textContent='Download video (.webm)';$('imageOutput').innerHTML='';$('imageOutput').append(video,link);resolve()};const duration=6000,start=performance.now();recorder.start();function frame(now){const p=Math.min(1,(now-start)/duration);const zoom=1+.10*p;const scale=Math.max(canvas.width/img.width,canvas.height/img.height);const w=img.width*scale,h=img.height*scale;ctx.fillStyle='#08080b';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.save();ctx.translate(canvas.width/2+(p-.5)*22,canvas.height/2+Math.sin(p*Math.PI*2)*8);ctx.scale(zoom,zoom);ctx.drawImage(img,-w/2,-h/2,w,h);ctx.restore();const shade=ctx.createLinearGradient(0,canvas.height*.55,0,canvas.height);shade.addColorStop(0,'#00000000');shade.addColorStop(1,'#00000055');ctx.fillStyle=shade;ctx.fillRect(0,0,canvas.width,canvas.height);if(p<1)requestAnimationFrame(frame);else setTimeout(()=>recorder.stop(),100)}requestAnimationFrame(frame)}catch(e){if(stream)stream.getTracks().forEach(t=>t.stop());reject(e)}};img.onerror=()=>reject(Error('Could not load generated image'));img.src=src})}
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();freshChat();$('prompt').focus()}});
 init();
-})();
 </script>
 </body>
 </html>`;
@@ -796,30 +89,25 @@ function json(data, status = 200) {
 
 async function verifyUser(request, env) {
   const auth = request.headers.get("Authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!auth.startsWith("Bearer ")) return null;
 
-  if (!token || !env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
-    return null;
+  const response = await fetch(env.SUPABASE_URL + "/auth/v1/user", {
+    headers: {
+      "Authorization": auth,
+      "apikey": env.SUPABASE_ANON_KEY
+    }
+  });
+
+  if (!response.ok) return null;
+  return response.json();
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   }
-
-  try {
-    const r = await fetch(
-      env.SUPABASE_URL.replace(/\/+$/, "") + "/auth/v1/user",
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-          apikey: env.SUPABASE_ANON_KEY
-        }
-      }
-    );
-
-    if (!r.ok) return null;
-
-    const user = await r.json();
-    return user && user.id ? user : null;
-  } catch {
-    return null;
-  }
+  return btoa(binary);
 }
 
 export default {
@@ -831,176 +119,131 @@ export default {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": url.origin,
-          "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type,Authorization",
-          "Access-Control-Max-Age": "86400"
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization"
         }
       });
     }
 
-    if (
-      request.method === "GET" &&
-      (url.pathname === "/" || url.pathname === "/index.html")
-    ) {
-      return new Response(HTML, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": "no-cache"
-        }
-      });
-    }
-
-    if (request.method === "GET" && url.pathname === "/api/config") {
-      return json({
-        supabaseUrl: env.SUPABASE_URL || "",
-        supabaseAnonKey: env.SUPABASE_ANON_KEY || ""
-      });
-    }
-
-    if (request.method === "GET" && url.pathname === "/api/health") {
-      return json({
-        ok: true,
-        service: "VYRO AI",
-        ai: !!env.AI,
-        supabaseConfigured: !!(
-          env.SUPABASE_URL && env.SUPABASE_ANON_KEY
-        )
-      });
-    }
-
-    if (url.pathname === "/api/chat" && request.method === "POST") {
-      if (!await verifyUser(request, env)) {
-        return json({
-          error: "Please sign in again. If your email is not verified, verify it first."
-        }, 401);
-      }
-
-      if (!env.AI) {
-        return json({
-          error: "Workers AI binding named AI is missing."
-        }, 500);
-      }
-
-      let body;
-      try {
-        body = await request.json();
-      } catch {
-        return json({ error: "Invalid JSON." }, 400);
-      }
-
-      const messages = Array.isArray(body.messages)
-        ? body.messages.slice(-20)
-        : [];
-
-      if (!messages.length) {
-        return json({ error: "Send a message first." }, 400);
-      }
-
-      try {
-        const result = await env.AI.run(
-          "@cf/meta/llama-3.1-8b-instruct-fast",
-          {
-            messages: [
-              {
-                role: "system",
-                content: "You are VYRO AI, a helpful and accurate assistant. Explain clearly and naturally."
-              },
-              ...messages.map(m => ({
-                role: m.role === "assistant" ? "assistant" : "user",
-                content: String(m.content || "").slice(0, 10000)
-              }))
-            ],
-            max_tokens: 1200
+    try {
+      if (url.pathname === "/" && request.method === "GET") {
+        return new Response(HTML, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-cache"
           }
-        );
-
-        return json({
-          response: result.response || "No response generated."
         });
-      } catch {
+      }
+
+      if (url.pathname === "/api/config" && request.method === "GET") {
+        if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+          return json({ error: "Supabase environment variables are missing." }, 500);
+        }
         return json({
-          error: "AI request failed. Check Workers AI availability and limits."
-        }, 502);
+          supabaseUrl: env.SUPABASE_URL,
+          supabaseAnonKey: env.SUPABASE_ANON_KEY
+        });
       }
-    }
 
-    if (url.pathname === "/api/image" && request.method === "POST") {
-      if (!await verifyUser(request, env)) {
+      if (url.pathname === "/api/health" && request.method === "GET") {
         return json({
-          error: "Please sign in again. If your email is not verified, verify it first."
-        }, 401);
+          ok: true,
+          service: "Vyro AI",
+          aiBinding: Boolean(env.AI),
+          supabaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_ANON_KEY)
+        });
       }
 
-      if (!env.AI) {
-        return json({
-          error: "Workers AI binding named AI is missing."
-        }, 500);
+      if (url.pathname === "/api/chat" && request.method === "POST") {
+        const user = await verifyUser(request, env);
+        if (!user) return json({ error: "Please sign in again." }, 401);
+        if (!env.AI) return json({ error: "Workers AI binding is not configured." }, 500);
+
+        const body = await request.json();
+        const messages = Array.isArray(body.messages) ? body.messages : [];
+        const safeMessages = messages
+          .filter(m => m && ["user", "assistant"].includes(m.role) && typeof m.content === "string")
+          .slice(-20)
+          .map(m => ({ role: m.role, content: m.content.slice(0, 12000) }));
+
+        if (!safeMessages.length) return json({ error: "Enter a message first." }, 400);
+
+        const result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", {
+          messages: [
+            {
+              role: "system",
+              content: "You are Vyro, a friendly and helpful AI assistant. Be natural, clear, and useful. Match the user's tone respectfully. Use Markdown when helpful. If unsure, say so."
+            },
+            ...safeMessages
+          ],
+          max_tokens: 1200
+        });
+
+        const reply = result && (result.response || result.output_text);
+        if (!reply) return json({ error: "The AI returned no text. Please try again." }, 502);
+        return json({ reply });
       }
 
-      let body;
-      try {
-        body = await request.json();
-      } catch {
-        return json({ error: "Invalid JSON." }, 400);
-      }
+      if (url.pathname === "/api/image" && request.method === "POST") {
+        const user = await verifyUser(request, env);
+        if (!user) return json({ error: "Please sign in again." }, 401);
+        if (!env.AI) return json({ error: "Workers AI binding is not configured." }, 500);
 
-      const prompt = String(body.prompt || "").trim().slice(0, 1500);
+        const body = await request.json();
+        const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 1500) : "";
+        if (!prompt) return json({ error: "Enter an image description." }, 400);
 
-      if (!prompt) {
-        return json({ error: "Describe your image first." }, 400);
-      }
-
-      try {
-        const result = await env.AI.run(
-          "@cf/black-forest-labs/flux-1-schnell",
-          {
+        let result;
+        try {
+          result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
             prompt,
-            num_steps: 4
-          }
-        );
+            steps: 4
+          });
+        } catch (error) {
+          console.error("VYRO_IMAGE_ERROR:", error);
+          return json({
+            error: "Image generation failed.",
+            details: error && error.message ? error.message : String(error)
+          }, 502);
+        }
+
+        if (result && typeof result.image === "string") {
+          return json({
+            image: result.image.startsWith("data:")
+              ? result.image
+              : "data:image/png;base64," + result.image
+          });
+        }
 
         if (result instanceof Response) {
-          return new Response(result.body, {
-            headers: {
-              "Content-Type": result.headers.get("Content-Type") || "image/png",
-              "Cache-Control": "no-store"
-            }
+          const bytes = new Uint8Array(await result.arrayBuffer());
+          return json({ image: "data:image/png;base64," + bytesToBase64(bytes) });
+        }
+
+        if (result instanceof ArrayBuffer) {
+          return json({
+            image: "data:image/png;base64," + bytesToBase64(new Uint8Array(result))
           });
         }
 
-        if (result && result.image) {
-          const bytes = Uint8Array.from(
-            atob(result.image),
-            c => c.charCodeAt(0)
-          );
-
-          return new Response(bytes, {
-            headers: {
-              "Content-Type": "image/png",
-              "Cache-Control": "no-store"
-            }
-          });
+        if (ArrayBuffer.isView(result)) {
+          const bytes = new Uint8Array(result.buffer, result.byteOffset, result.byteLength);
+          return json({ image: "data:image/png;base64," + bytesToBase64(bytes) });
         }
 
-        if (result instanceof ArrayBuffer || ArrayBuffer.isView(result)) {
-          return new Response(result, {
-            headers: {
-              "Content-Type": "image/png",
-              "Cache-Control": "no-store"
-            }
-          });
-        }
-
+        console.error("Unexpected image model result type:", typeof result);
         return json({
-          error: "Unexpected image model response."
-        }, 502);
-      } catch {
-        return json({
-          error: "Image generation failed. Check Workers AI availability and limits."
+          error: "The image model returned an unexpected format.",
+          details: "Check the Workers AI model response in Cloudflare logs."
         }, 502);
       }
-    }
 
-    return json({ error: "Not found." }, 404);
+      return json({ error: "Route not found." }, 404);
+    } catch (error) {
+      console.error("VYRO_WORKER_ERROR:", error);
+      return json({
+        error: error && error.message ? error.message : "Unexpected server error."
+      }, 500);
+    }
   }
 };
