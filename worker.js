@@ -1,3 +1,4 @@
+
 const HTML = String.raw`<!doctype html>
 <html lang="en">
 <head>
@@ -6,7 +7,6 @@ const HTML = String.raw`<!doctype html>
 <title>VYRO</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-/* Minimal, neutral UI: square buttons, no glow, simple liquid-ish logo */
 :root{
   --bg:#0f1113;
   --panel:#16171a;
@@ -19,108 +19,107 @@ const HTML = String.raw`<!doctype html>
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
-  margin:0;
-  background:var(--bg);
-  color:var(--text);
+  margin:0;background:var(--bg);color:var(--text);
   font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
-  font-size:15px;
-  line-height:1.4;
+  font-size:15px;line-height:1.4;
 }
 button,input,textarea{font:inherit}
 button{cursor:pointer}
 button:disabled{opacity:.6;cursor:not-allowed}
 .app{display:flex;height:100vh;overflow:hidden}
 .sidebar{
-  width:260px;
-  background:var(--panel);
+  width:260px;background:var(--panel);
   border-right:1px solid var(--muted-border);
-  padding:16px;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
+  padding:16px;display:flex;flex-direction:column;gap:10px;
 }
-.brand{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-weight:700;
-  font-size:18px;
-}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px}
 .logo{
-  width:40px;
-  height:40px;
-  display:grid;
-  place-items:center;
+  width:40px;height:40px;display:grid;place-items:center;
   background:linear-gradient(180deg,#2b2650,#1f2030);
   border:1px solid var(--muted-border);
-  /* keep square but slightly rounded internal orb for 'liquid' feel */
 }
 .logo .orb{
-  width:70%;
-  height:70%;
+  width:70%;height:70%;
   background:linear-gradient(180deg,#8f7ed9,#6b5fb5);
-  border-radius:40%;
-  filter:contrast(.95);
+  border-radius:40%;filter:contrast(.95);
 }
 .button{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:10px;
-  border:1px solid var(--muted-border);
-  background:transparent;
-  color:var(--text);
-  text-align:left;
-  width:100%;
-  box-shadow:none;
-  border-radius:4px; /* square-ish */
+  display:inline-flex;align-items:center;gap:8px;padding:10px;
+  border:1px solid var(--muted-border);background:transparent;
+  color:var(--text);text-align:left;width:100%;
+  box-shadow:none;border-radius:4px;
 }
 .button:hover{background:#1b1c1f}
-.button.primary{
-  background:var(--accent);
-  color:white;
-  border-color:transparent;
-}
+.button.primary{background:var(--accent);color:white;border-color:transparent}
 .nav-list{display:flex;flex-direction:column;gap:6px}
 .label{font-size:11px;color:var(--muted);letter-spacing:1.2px;margin-top:8px}
 .history{overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:6px}
-.history .item{padding:10px;border:1px solid var(--muted-border);background:transparent;border-radius:4px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history .item{
+  padding:10px;border:1px solid var(--muted-border);
+  background:transparent;border-radius:4px;text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)
+}
 .bottom{margin-top:auto;display:flex;flex-direction:column;gap:8px}
 .profile{font-size:12px;color:var(--muted);word-break:break-word}
-
-/* main area */
 .main{flex:1;display:flex;flex-direction:column;min-width:0}
-.top{height:60px;display:flex;align-items:center;padding:0 18px;border-bottom:1px solid var(--muted-border);background:transparent}
+.top{
+  height:60px;display:flex;align-items:center;padding:0 18px;
+  border-bottom:1px solid var(--muted-border);background:transparent
+}
 .content{flex:1;overflow:auto;padding:18px}
-.views{display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start;max-width:1200px;margin:auto;width:100%}
+.views{
+  display:grid;grid-template-columns:1fr 380px;gap:20px;
+  align-items:start;max-width:1200px;margin:auto;width:100%
+}
 .left-column{min-width:0}
-.messages{background:var(--panel);border:1px solid var(--muted-border);padding:16px;border-radius:6px;min-height:300px;overflow:auto}
+.messages{
+  background:var(--panel);border:1px solid var(--muted-border);
+  padding:16px;border-radius:6px;min-height:300px;overflow:auto
+}
 .message{padding:10px;border-radius:4px;margin-bottom:10px}
 .message.user{text-align:right;background:#111214;border:1px solid #222427}
 .message.assistant{text-align:left;background:#121316;border:1px solid #222427}
 .composer{display:flex;gap:8px;margin-top:12px}
-textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:transparent;color:var(--text);resize:none;border-radius:4px}
-.send{width:70px;border:1px solid var(--muted-border);background:var(--accent);color:white;padding:10px;border-radius:4px}
-
-/* studio */
-.studio{background:var(--panel);border:1px solid var(--muted-border);padding:16px;border-radius:6px}
+textarea{
+  flex:1;padding:10px;border:1px solid var(--muted-border);
+  background:transparent;color:var(--text);resize:none;border-radius:4px
+}
+.send{
+  width:70px;border:1px solid var(--muted-border);
+  background:var(--accent);color:white;padding:10px;border-radius:4px
+}
+.studio{
+  background:var(--panel);border:1px solid var(--muted-border);
+  padding:16px;border-radius:6px
+}
 .studio textarea{min-height:120px}
-#imageResult img{max-width:100%;display:block;border-radius:4px;border:1px solid var(--muted-border);margin-top:12px}
+#imageResult img{
+  max-width:100%;display:block;border-radius:4px;
+  border:1px solid var(--muted-border);margin-top:12px
+}
 .image-actions{display:flex;gap:8px;margin-top:10px}
-
-/* login overlay */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:18px;z-index:30}
-.card{width:420px;background:#0d0e10;border:1px solid var(--muted-border);padding:20px;border-radius:8px}
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  display:flex;align-items:center;justify-content:center;
+  padding:18px;z-index:30;overflow-y:auto
+}
+.card{
+  width:420px;max-width:100%;background:#0d0e10;
+  border:1px solid var(--muted-border);padding:20px;border-radius:8px
+}
 .card h2{margin:0 0 6px}
 .card p{color:var(--muted);margin:0 0 12px}
-.card input{width:100%;padding:10px;border-radius:4px;border:1px solid var(--muted-border);background:transparent;color:var(--text)}
-.card .primary{width:100%;padding:10px;background:var(--accent);color:#fff;border-radius:4px;border:0}
-
-.small{font-size:12px;color:var(--muted);}
-
-/* responsive */
+.card input{
+  width:100%;padding:10px;border-radius:4px;
+  border:1px solid var(--muted-border);background:transparent;color:var(--text)
+}
+.card .primary{
+  width:100%;padding:10px;background:var(--accent);
+  color:#fff;border-radius:4px;border:0
+}
+.small{font-size:12px;color:var(--muted)}
 @media(max-width:980px){
   .views{grid-template-columns:1fr;gap:12px}
   .sidebar{display:none}
@@ -135,41 +134,31 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
       <div class="logo" aria-hidden="true"><div class="orb"></div></div>
       VYRO
     </div>
-
     <button id="newChat" class="button">＋ New</button>
-
     <div class="label">MENUS</div>
     <div class="nav-list">
       <button id="chatTab" class="button">Chat</button>
       <button id="studioTab" class="button">Image Studio</button>
     </div>
-
     <div class="label">RECENT</div>
     <div class="history" id="history"></div>
-
     <div class="bottom">
       <div class="profile" id="profile">Not signed in</div>
       <button id="clearHistory" class="button">Clear</button>
       <button id="logout" class="button">Sign out</button>
     </div>
   </aside>
-
   <main class="main">
-    <header class="top">
-      <div style="font-weight:700">VYRO</div>
-    </header>
-
+    <header class="top"><div style="font-weight:700">VYRO</div></header>
     <div class="content">
       <div class="views">
         <div class="left-column">
           <div id="chatView" class="messages" aria-live="polite"></div>
-
           <div class="composer">
             <textarea id="prompt" placeholder="Message VYRO..." rows="2"></textarea>
             <button id="send" class="send">Send</button>
           </div>
         </div>
-
         <div class="studio" id="studioPanel" style="display:none">
           <h3>Image Studio</h3>
           <p class="small">Generate images from a prompt.</p>
@@ -191,13 +180,14 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
     <h2 id="authTitle">Sign in</h2>
     <p id="authSubtitle">Sign in with email</p>
     <form id="loginForm">
-      <input id="email" type="email" placeholder="you@example.com" required>
-      <input id="password" type="password" placeholder="Password" style="margin-top:8px" required>
+      <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required>
+      <input id="password" type="password" placeholder="Password (at least 6 characters)" autocomplete="current-password" minlength="6" style="margin-top:8px" required>
       <div style="margin-top:12px">
         <button id="loginButton" class="primary" type="submit">Sign in</button>
       </div>
     </form>
-    <div id="loginStatus" class="small" style="margin-top:8px"></div>
+    <button id="authSwitch" class="button" type="button" style="margin-top:10px;width:100%;text-align:center">Don't have an account? Sign up</button>
+    <div id="loginStatus" class="small" style="margin-top:8px" aria-live="polite"></div>
   </div>
 </div>
 
@@ -205,7 +195,8 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  let sb = null, session = null, busy = false, chats = [], chatId = null, authMode = 'signin', pendingVerificationEmail = '';
+  let sb = null, session = null, busy = false, chats = [], chatId = null;
+  let authMode = 'signin';
 
   const KEY = 'vyro_chat_history_v2';
 
@@ -217,13 +208,22 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
     try{
       const r = await fetch('/api/config', { cache: 'no-store' });
       const c = await r.json();
-      if (!r.ok || !c.supabaseUrl || !c.supabaseAnonKey) throw Error('Missing Supabase config in worker.');
+      if (!r.ok || !c.supabaseUrl || !c.supabaseAnonKey) {
+        throw Error('Missing Supabase config in worker.');
+      }
       if (!window.supabase) throw Error('Supabase client failed to load.');
+
       sb = window.supabase.createClient(c.supabaseUrl, c.supabaseAnonKey, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
       });
+
       const { data } = await sb.auth.getSession();
       applySession(data.session);
+
       sb.auth.onAuthStateChange((event, s) => {
         applySession(s);
       });
@@ -250,7 +250,8 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
   }
 
   function saveHistory(){
-    try{ localStorage.setItem(KEY, JSON.stringify(chats)); }catch(e){ console.warn(e); }
+    try{ localStorage.setItem(KEY, JSON.stringify(chats)); }
+    catch(e){ console.warn(e); }
     renderHistory();
   }
 
@@ -266,7 +267,9 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
     }
   }
 
-  function current(){ return chats.find(c => c.id === chatId); }
+  function current(){
+    return chats.find(c => c.id === chatId);
+  }
 
   function newChat(){
     const id = String(Date.now()) + '-' + Math.random().toString(36).slice(2,7);
@@ -314,6 +317,7 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
     const text = (prefill ?? $('prompt').value).trim();
     if (!text) return;
     if (!session){ showLogin(true); return; }
+
     $('prompt').value = '';
     addMessage('user', text);
     busy = true;
@@ -323,10 +327,13 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
     try{
       const r = await fetch('/api/chat', {
         method:'POST',
-        headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer ' + session.access_token
+        },
         body: JSON.stringify({ messages: current().messages })
       });
-      const d = await r.json().catch(()=>({ error: 'Invalid response' }));
+      const d = await r.json().catch(()=>({ error:'Invalid response' }));
       if (!r.ok) throw Error(d.error || d.details || 'Chat request failed.');
       waiting.remove();
       addMessage('assistant', d.response || d.text || 'No response.');
@@ -347,7 +354,7 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
       const binary = atob(raw);
       const bytes = new Uint8Array(binary.length);
       for (let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
-      return new Blob([bytes],{ type: mime });
+      return new Blob([bytes],{ type:mime });
     }catch(e){
       return null;
     }
@@ -357,6 +364,7 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
     const prompt = $('imagePrompt').value.trim();
     if (!prompt){ $('imageStatus').textContent = 'Please enter a prompt.'; return; }
     if (!session){ showLogin(true); return; }
+
     $('generate').disabled = true;
     $('imageStatus').textContent = 'Generating…';
     $('imageResult').replaceChildren();
@@ -364,13 +372,18 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
     try{
       const r = await fetch('/api/image', {
         method:'POST',
-        headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer ' + session.access_token
+        },
         body: JSON.stringify({ prompt })
       });
 
       const type = (r.headers.get('Content-Type') || '').toLowerCase();
       if (!r.ok){
-        const d = type.includes('application/json') ? await r.json().catch(()=>({})) : { details: await r.text().catch(()=>'') };
+        const d = type.includes('application/json')
+          ? await r.json().catch(()=>({}))
+          : { details: await r.text().catch(()=>'') };
         throw Error(d.error || d.details || 'Image endpoint error');
       }
 
@@ -387,7 +400,7 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
         try{
           const parsed = JSON.parse(text);
           if (parsed && typeof parsed.image === 'string') blob = blobFromBase64(parsed.image);
-          else throw new Error('No image field in JSON');
+          else throw Error('No image field in JSON');
         }catch{
           if (text.startsWith('data:image/')) blob = blobFromBase64(text);
           else {
@@ -408,6 +421,7 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
       img.alt = prompt;
       img.onload = () => { $('imageStatus').textContent = 'Image ready.'; };
       img.onerror = () => { $('imageStatus').textContent = 'Could not display image.'; };
+
       const actions = document.createElement('div');
       actions.className = 'image-actions';
       const dl = document.createElement('a');
@@ -416,6 +430,7 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
       dl.className = 'button primary';
       dl.textContent = 'Download';
       actions.appendChild(dl);
+
       $('imageResult').appendChild(img);
       $('imageResult').appendChild(actions);
     }catch(e){
@@ -426,40 +441,119 @@ textarea{flex:1;padding:10px;border:1px solid var(--muted-border);background:tra
     }
   }
 
-  // event bindings
+  // Email sign-in / sign-up screen
+  function setAuthMode(mode){
+    authMode = mode;
+    const signingUp = mode === 'signup';
+
+    $('authTitle').textContent = signingUp ? 'Create your VYRO account' : 'Sign in';
+    $('authSubtitle').textContent = signingUp
+      ? 'Create an account with your email and password'
+      : 'Sign in with email';
+
+    $('loginButton').textContent = signingUp ? 'Create account' : 'Sign in';
+    $('password').autocomplete = signingUp ? 'new-password' : 'current-password';
+    $('authSwitch').textContent = signingUp
+      ? 'Already have an account? Sign in'
+      : "Don't have an account? Sign up";
+
+    $('loginStatus').textContent = '';
+  }
+
+  $('authSwitch').onclick = () => {
+    setAuthMode(authMode === 'signup' ? 'signin' : 'signup');
+  };
+
+  $('loginForm').onsubmit = async (e) => {
+    e.preventDefault();
+
+    if (!sb){
+      $('loginStatus').textContent = 'Authentication is not ready yet.';
+      return;
+    }
+
+    const email = $('email').value.trim();
+    const password = $('password').value;
+    const signingUp = authMode === 'signup';
+
+    if (signingUp && password.length < 6){
+      $('loginStatus').textContent = 'Your password must be at least 6 characters.';
+      return;
+    }
+
+    $('loginButton').disabled = true;
+    $('authSwitch').disabled = true;
+    $('loginStatus').textContent = signingUp
+      ? 'Creating your account…'
+      : 'Signing in…';
+
+    try{
+      if (signingUp){
+        const { data, error } = await sb.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: location.origin }
+        });
+
+        if (error) throw error;
+
+        if (data.session){
+          applySession(data.session);
+          $('login').style.display = 'none';
+        }else{
+          $('loginStatus').textContent =
+            'Account created! Check your email and tap the verification link, then return to VYRO and sign in.';
+        }
+      }else{
+        const { data, error } = await sb.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) throw error;
+        applySession(data.session);
+        $('login').style.display = 'none';
+      }
+    }catch(err){
+      $('loginStatus').textContent =
+        err?.message || (signingUp ? 'Sign-up failed.' : 'Sign-in failed.');
+    }finally{
+      $('loginButton').disabled = false;
+      $('authSwitch').disabled = false;
+    }
+  };
+
+  setAuthMode('signin');
+
+  // Event bindings
   $('send').onclick = () => send();
-  $('prompt').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); } };
+  $('prompt').onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      send();
+    }
+  };
   $('newChat').onclick = newChat;
   $('chatTab').onclick = () => { $('studioPanel').style.display = 'none'; };
   $('studioTab').onclick = () => { $('studioPanel').style.display = 'block'; };
   $('generate').onclick = generate;
   $('regen').onclick = generate;
-  $('clearHistory').onclick = () => { if (confirm('Clear history?')){ chats=[]; chatId=null; saveHistory(); renderMessages(); } };
+
+  $('clearHistory').onclick = () => {
+    if (confirm('Clear history?')){
+      chats = [];
+      chatId = null;
+      saveHistory();
+      renderMessages();
+    }
+  };
+
   $('logout').onclick = async () => {
     if (!sb) return;
     await sb.auth.signOut().catch(()=>{});
     session = null;
     showLogin(true);
     $('profile').textContent = 'Not signed in';
-  };
-
-  $('loginForm').onsubmit = async (e) => {
-    e.preventDefault();
-    if (!sb) return $('loginStatus').textContent = 'Auth not ready';
-    const email = $('email').value.trim();
-    const password = $('password').value;
-    $('loginButton').disabled = true;
-    $('loginStatus').textContent = 'Signing in…';
-    try{
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      applySession(data.session);
-      $('login').style.display = 'none';
-    }catch(err){
-      $('loginStatus').textContent = err?.message || 'Sign in failed';
-    }finally{
-      $('loginButton').disabled = false;
-    }
   };
 
   init();
@@ -544,7 +638,6 @@ function pickImagePayload(result) {
       }
     }
   }
-
   return null;
 }
 
@@ -552,30 +645,25 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const started = Date.now();
-    const requestId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2,8);
+    const requestId = (crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : String(Date.now()) + '-' + Math.random().toString(36).slice(2,8);
 
     const log = (event, details = {}) => {
       try {
         console.log(JSON.stringify({
-          service: "VYRO",
-          requestId,
-          event,
-          elapsedMs: Date.now() - started,
-          details
+          service: "VYRO", requestId, event,
+          elapsedMs: Date.now() - started, details
         }));
       } catch (err) {
         console.log(JSON.stringify({
-          service: "VYRO",
-          requestId,
-          event,
+          service: "VYRO", requestId, event,
           elapsedMs: Date.now() - started,
-          details: String(details),
-          logError: String(err)
+          details: String(details), logError: String(err)
         }));
       }
     };
 
-    // CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
@@ -630,7 +718,9 @@ export default {
         }
 
         let body;
-        try { body = await request.json(); } catch { return json({ error: "Invalid JSON", requestId }, 400); }
+        try { body = await request.json(); }
+        catch { return json({ error: "Invalid JSON", requestId }, 400); }
+
         const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
         if (!messages.length) return json({ error: "No messages", requestId }, 400);
 
@@ -671,60 +761,84 @@ export default {
         }
 
         let body;
-        try { body = await request.json(); } catch { return json({ error: "Invalid JSON", requestId }, 400); }
+        try { body = await request.json(); }
+        catch { return json({ error: "Invalid JSON", requestId }, 400); }
 
         const prompt = String(body.prompt || "").trim().slice(0, 1500);
         if (!prompt) return json({ error: "Empty prompt", requestId }, 400);
 
-        log("image.model_call", { model: "@cf/black-forest-labs/flux-1-schnell", promptLength: prompt.length });
+        log("image.model_call", {
+          model: "@cf/black-forest-labs/flux-1-schnell",
+          promptLength: prompt.length
+        });
 
         const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
           prompt,
           steps: 4
         });
 
-        // If the result is a Response (Workers AI sometimes returns Response)
         if (result instanceof Response) {
           if (!result.ok) {
             const detail = await result.text().catch(() => "");
             log("image.model_http_error", { status: result.status });
-            return json({ error: "Model returned error", details: detail.slice(0, 1000), requestId }, 502);
+            return json({
+              error: "Model returned error",
+              details: detail.slice(0, 1000),
+              requestId
+            }, 502);
           }
+
           const ct = (result.headers.get("Content-Type") || "").toLowerCase();
           if (ct.startsWith("image/")) {
             const buf = await result.arrayBuffer();
             return imageResponse(new Uint8Array(buf), ct);
           }
+
           if (ct.includes("application/json")) {
             const jsonBody = await result.json().catch(() => ({}));
             const payload = pickImagePayload(jsonBody);
             if (payload) return imageResponse(payload.bytes, payload.mime);
-            return json({ error: "Model returned JSON but no image", details: jsonBody, requestId }, 502);
+            return json({
+              error: "Model returned JSON but no image",
+              details: jsonBody,
+              requestId
+            }, 502);
           }
+
           const raw = await result.text().catch(() => "");
           const payload = pickImagePayload(raw);
           if (payload) return imageResponse(payload.bytes, payload.mime);
-          return json({ error: "Unexpected model response", details: raw.slice(0, 1000), requestId }, 502);
+          return json({
+            error: "Unexpected model response",
+            details: raw.slice(0, 1000),
+            requestId
+          }, 502);
         }
 
-        // result is not a Response
         const payload = pickImagePayload(result);
-        if (payload) {
-          return imageResponse(payload.bytes, payload.mime);
-        }
+        if (payload) return imageResponse(payload.bytes, payload.mime);
 
-        // fallback debug
         log("image.unexpected_result", {
           type: typeof result,
           constructor: result && result.constructor ? result.constructor.name : null,
-          keys: result && typeof result === 'object' ? Object.keys(result).slice(0, 20) : null
+          keys: result && typeof result === 'object'
+            ? Object.keys(result).slice(0, 20)
+            : null
         });
 
-        return json({ error: "Unexpected image response shape", details: typeof result === 'string' ? result.slice(0, 1000) : null, requestId }, 502);
+        return json({
+          error: "Unexpected image response shape",
+          details: typeof result === 'string' ? result.slice(0, 1000) : null,
+          requestId
+        }, 502);
       } catch (e) {
         const details = e instanceof Error ? e.message : String(e);
         console.error("image.error", details);
-        return json({ error: "Image generation failed", details: details.slice(0, 500), requestId }, 502);
+        return json({
+          error: "Image generation failed",
+          details: details.slice(0, 500),
+          requestId
+        }, 502);
       }
     }
 
