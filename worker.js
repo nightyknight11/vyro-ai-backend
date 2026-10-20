@@ -20,10 +20,11 @@ const FIREBASE_CONFIG = {
   appId: "1:1040345798514:web:017fc23087e9a6e5d42feb"
 };
 
-// Change this to another model available to your Cloudflare account if needed.
+// Text chat and vision models are separate. Gemma 4 supports vision and avoids the Llama 3.2 license-acceptance prompt.
+// Change models only if the selected model is unavailable in your Cloudflare account.
 const CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
-const VISION_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
+const VISION_MODEL = "@cf/google/gemma-4-26b-a4b-it";
 
 const HTML = String.raw`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08080b"><title>VYRO AI</title>
