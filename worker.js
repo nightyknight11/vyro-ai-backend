@@ -1,20 +1,16 @@
 // ============================================================
-// VYRO AI — COMPLETE CLOUDFLARE WORKER
-// Firebase Authentication + Chat + Image Studio + File Reader
-// Public AI label: Y10
+// VYRO AI — Cloudflare Worker
+// Firebase email/password auth + AI chat + image generation
 // ============================================================
+// Cloudflare setup:
+// 1) Add FIREBASE_API_KEY as a Worker variable (your Firebase Web API key).
+// 2) Bind Workers AI as `AI` in wrangler.toml.
+// 3) Enable Email/Password in Firebase Authentication.
+// 4) Add your Worker hostname to Firebase Authentication > Authorized domains.
 //
-// CLOUDFLARE REQUIREMENTS:
-// 1. Set FIREBASE_API_KEY as a Worker secret/variable.
-// 2. Bind Cloudflare Workers AI as AI.
-// 3. Enable Email/Password in Firebase Authentication.
-// 4. Authorize your Worker domain in Firebase Authentication.
-// 5. Deploy this entire file as your Worker.
-//
-// IMPORTANT:
-// Y10 is VYRO's public product/engine label.
-// The actual models are the Cloudflare models configured below.
-// ============================================================
+// Product branding: VYRO AI / public engine label: Y10.
+// The configured model below is the actual backend model; Y10 is the public
+// product label. This code does not connect to the ChatGPT consumer app.
 
 const FIREBASE_CONFIG = {
   authDomain: "vyro-ai-43783.firebaseapp.com",
@@ -24,1440 +20,194 @@ const FIREBASE_CONFIG = {
   appId: "1:1040345798514:web:017fc23087e9a6e5d42feb"
 };
 
+// Text chat and vision models are separate. Gemma 4 supports vision and avoids the Llama 3.2 license-acceptance prompt.
+// Change models only if the selected model is unavailable in your Cloudflare account.
 const CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
 const VISION_MODEL = "@cf/google/gemma-4-26b-a4b-it";
 
-const SYSTEM_PROMPT = `
-You are VYRO, a helpful AI assistant.
-Your public product/engine label is Y10.
-If asked what your engine is called, answer Y10.
-Never falsely claim that you are ChatGPT or that the configured
-underlying model is a different model.
-
-Read and analyze the actual text or image content supplied by the user.
-When a file's extracted contents are supplied, use those contents directly.
-Never claim to have read a file whose contents were not provided.
-If a file is empty, unreadable, or unsupported, explain the limitation.
-
-For documents:
-- Summarize the document accurately.
-- Answer questions using its actual contents.
-- For schoolwork, explain the method step by step.
-- For code, explain errors and suggest fixes.
-- For CSV and spreadsheet data, analyze columns, missing values,
-  statistics, trends, and anomalies using the supplied values.
-- Do not fabricate calculations or facts.
-- Clearly identify uncertainty and missing information.
-
-For images, inspect the visible content and explain what can be read.
-For code, use fenced Markdown code blocks with language labels.
-Be useful, friendly, accurate, and direct.
-`;
-
 const HTML = String.raw`<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#08080b">
-<title>VYRO AI</title>
-
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08080b"><title>VYRO AI</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
-:root {
-  color-scheme: dark;
-  --bg:#08080b;
-  --panel:#101015;
-  --panel2:#191920;
-  --line:#30303a;
-  --text:#f4f3fa;
-  --muted:#a4a2b3;
-  --accent:#7664cb;
-}
-* { box-sizing:border-box; }
-body {
-  margin:0;
-  background:var(--bg);
-  color:var(--text);
-  font:14px system-ui,Arial,sans-serif;
-}
-button,input,textarea { font:inherit; }
-button { cursor:pointer; }
-button:disabled { opacity:.55; cursor:wait; }
-button,input,textarea {
-  border-radius:10px;
-}
-button:focus-visible,input:focus-visible,textarea:focus-visible {
-  outline:2px solid var(--accent);
-  outline-offset:2px;
-}
-.app { min-height:100dvh; display:flex; }
-.sidebar {
-  width:245px;
-  flex-shrink:0;
-  background:var(--panel);
-  border-right:1px solid var(--line);
-  padding:16px;
-  display:flex;
-  flex-direction:column;
-  gap:9px;
-}
-.brand {
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-size:21px;
-  font-weight:850;
-  letter-spacing:2px;
-  margin-bottom:12px;
-}
-.logo {
-  width:38px;
-  height:38px;
-  display:grid;
-  place-items:center;
-  background:#171520;
-  border:1px solid #514576;
-  border-radius:12px;
-}
-.logo svg { width:27px;height:27px; }
-button {
-  padding:10px 12px;
-  color:var(--text);
-  background:var(--panel2);
-  border:1px solid var(--line);
-}
-button:hover { border-color:var(--accent); }
-.primary,.send {
-  background:var(--accent);
-  border-color:var(--accent);
-  color:white;
-}
-.sidebar .sidebutton { text-align:left; }
-.history {
-  display:flex;
-  flex-direction:column;
-  gap:5px;
-  overflow:auto;
-  max-height:45vh;
-}
-.history button {
-  text-align:left;
-  overflow:hidden;
-  white-space:nowrap;
-  text-overflow:ellipsis;
-}
-.bottom { margin-top:auto; }
-.muted {
-  color:var(--muted);
-  font-size:12px;
-  line-height:1.6;
-  overflow-wrap:anywhere;
-}
-.main {
-  flex:1;
-  min-width:0;
-  display:flex;
-  flex-direction:column;
-  min-height:100dvh;
-}
-.top {
-  height:58px;
-  padding:0 18px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  border-bottom:1px solid var(--line);
-}
-.content {
-  flex:1;
-  width:100%;
-  max-width:1000px;
-  margin:auto;
-  padding:20px;
-}
-.welcome { padding:30px 0 20px; }
-.welcome h1 {
-  font-size:clamp(28px,5vw,42px);
-  margin:0 0 10px;
-}
-.accent { color:#b7a6ff; }
-.grid {
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:10px;
-  margin:20px 0;
-}
-.quick {
-  min-height:75px;
-  text-align:left;
-  padding:14px;
-}
-.quick strong,.quick span { display:block; }
-.quick span { margin-top:5px;color:var(--muted);font-size:12px; }
-.messages {
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-  padding-bottom:14px;
-}
-.msg {
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:12px;
-  padding:14px;
-  white-space:pre-wrap;
-  overflow-wrap:anywhere;
-  line-height:1.7;
-}
-.msg.user { background:#191622; }
-.msg pre {
-  white-space:pre;
-  overflow:auto;
-  background:#08080d;
-  border:1px solid var(--line);
-  padding:12px;
-  border-radius:8px;
-}
-.msg code { font-family:ui-monospace,Consolas,monospace; }
-.composer {
-  position:sticky;
-  bottom:0;
-  display:flex;
-  align-items:stretch;
-  gap:8px;
-  background:var(--bg);
-  padding:10px 0;
-}
-textarea,input {
-  width:100%;
-  padding:12px;
-  background:var(--panel);
-  color:var(--text);
-  border:1px solid var(--line);
-}
-textarea { resize:vertical;min-height:50px;max-height:220px; }
-.send { min-width:75px; }
-.attachments {
-  max-height:180px;
-  overflow:auto;
-  margin-bottom:8px;
-}
-.file {
-  padding:9px;
-  margin:5px 0;
-  border:1px solid var(--line);
-  background:var(--panel);
-  border-radius:9px;
-  overflow-wrap:anywhere;
-}
-.file button { margin-left:8px;padding:4px 8px; }
-.hidden { display:none!important; }
-.overlay {
-  position:fixed;
-  inset:0;
-  z-index:10;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  overflow:auto;
-  padding:16px;
-  background:#08080bf5;
-}
-.card {
-  width:420px;
-  max-width:100%;
-  padding:24px;
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:16px;
-}
-.card input { margin:6px 0; }
-.card button { width:100%;margin-top:8px; }
-.status { margin-top:10px;overflow-wrap:anywhere;line-height:1.6; }
-.err { color:#ff929b; }
-.ok { color:#91d8b3; }
-#imageResult img { display:block;width:100%;margin-top:15px;border:1px solid var(--line); }
-@media(max-width:720px) {
-  .sidebar { display:none; }
-  .content { padding:12px; }
-  .top { padding:0 12px; }
-  .composer { gap:5px; }
-  .grid { gap:8px; }
-  .send { min-width:60px;padding:9px; }
-}
-</style>
-</head>
+:root{color-scheme:dark;--bg:#08080b;--panel:#101015;--panel2:#17171e;--line:#2b2b35;--text:#f4f3fa;--muted:#9997a8;--accent:#7664cb}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,Arial,sans-serif}button,input,textarea{font:inherit;border-radius:0!important}button{cursor:pointer}button:disabled{opacity:.5;cursor:wait}.app{height:100dvh;display:flex;overflow:hidden}.side{width:235px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);padding:15px;display:flex;flex-direction:column;gap:8px}.brand{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:850;letter-spacing:2px;padding-bottom:16px}.logo{width:38px;height:38px;border:1px solid #514576;background:#171520;display:grid;place-items:center}.logo svg{width:27px;height:27px}.btn{padding:11px 12px;background:transparent;color:var(--text);border:1px solid var(--line);text-align:left}.btn:hover{background:var(--panel2)}.primary{background:var(--accent);border-color:var(--accent);color:white}.section{font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-top:14px}.history{display:flex;flex-direction:column;gap:5px;overflow:auto}.hist{padding:9px;border:1px solid transparent;background:transparent;color:var(--muted);text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hist.active,.hist:hover{background:var(--panel2);border-color:var(--line);color:var(--text)}.bottom{margin-top:auto;display:flex;flex-direction:column;gap:7px}.muted{color:var(--muted);font-size:12px;line-height:1.7;overflow-wrap:anywhere}.main{flex:1;min-width:0;display:flex;flex-direction:column}.top{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid var(--line)}.content{padding:18px;overflow:auto;flex:1}.work{max-width:900px;margin:auto}.welcome{padding:30px 0 20px}.welcome h1{font-size:clamp(28px,5vw,40px);margin:0 0 8px;letter-spacing:-1px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:20px 0}.quick{padding:14px;background:var(--panel);border:1px solid var(--line);color:var(--text);text-align:left}.quick strong,.quick span{display:block}.quick span{font-size:12px;color:var(--muted);margin-top:5px}.messages{display:flex;flex-direction:column;gap:10px;padding-bottom:14px}.msg{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;padding:14px;border:1px solid var(--line);background:var(--panel)}.msg.user{background:#17151f}.tag{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px}.composer{display:flex;gap:7px;position:sticky;bottom:0;background:var(--bg);padding:8px 0}textarea,input{width:100%;padding:12px;background:#101014;border:1px solid var(--line);color:var(--text);outline:none}textarea{resize:vertical;min-height:48px;max-height:220px}.send{padding:10px 16px;border:1px solid var(--accent);background:var(--accent);color:white}.panel{padding:18px;background:var(--panel);border:1px solid var(--line);margin-bottom:15px}.panel h2{margin-top:0}.hidden{display:none!important}.overlay{position:fixed;z-index:5;inset:0;background:#07070b;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}.card{width:420px;max-width:100%;padding:24px;background:var(--panel);border:1px solid #35313f}.card h1{margin:18px 0 8px}.card input{margin:5px 0}.authbtn{width:100%;padding:12px;margin-top:8px;background:var(--accent);border:1px solid var(--accent);color:white}.card .btn{width:100%;text-align:center;margin-top:8px}.status{margin-top:10px;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.err{color:#ff929b}.ok{color:#91d8b3}.image-result img{display:block;width:100%;height:auto;margin-top:12px;border:1px solid var(--line)}@media(max-width:720px){.side{display:none}.content{padding:13px}.top{padding:0 13px}}@media(max-width:380px){.grid{grid-template-columns:1fr}}
 
-<body>
-<div class="app">
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="logo">
-        <svg viewBox="0 0 32 32" fill="none">
-          <path d="M5 7L13 25L21 7M18 25L27 7"
-            stroke="#c4b7ff" stroke-width="3.2"/>
-        </svg>
-      </div>
-      VYRO
-    </div>
+/* VYRO workspace upgrade */
+:root{--sidebar-w:258px;--motion:180ms}body{transition:background var(--motion),color var(--motion)}.side{width:var(--sidebar-w);transition:transform .22s ease,width .22s ease;z-index:3}.app.sidebar-collapsed .side{width:0;padding-left:0;padding-right:0;overflow:hidden;border:0}.menu-btn{border:1px solid var(--line);background:var(--panel);color:var(--text);padding:7px 10px}.side-tools{display:flex;gap:6px}.side-tools .btn{flex:1;text-align:center}.msg{animation:rise .18s ease both}.msg pre{white-space:pre;overflow:auto;background:#08080d;border:1px solid var(--line);padding:13px;margin:10px 0 0;position:relative}.msg code{font:13px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace}.code-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#20202a;border:1px solid var(--line);border-bottom:0;color:var(--muted);font-size:11px}.copy-code{background:transparent;border:1px solid #555365;color:var(--text);padding:5px 9px}.copy-code:hover{background:#353344}.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.settings-grid label{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}.settings-grid select,.settings-grid input{width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--line)}.modal-card{width:560px;max-width:100%;max-height:90dvh;overflow:auto;background:var(--panel);border:1px solid var(--line);padding:20px}.modal-backdrop{position:fixed;inset:0;z-index:8;background:#000b;display:flex;align-items:center;justify-content:center;padding:14px}.file-chip{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);background:var(--panel);margin:5px 0;font-size:12px;overflow-wrap:anywhere}.file-chip button{margin-left:auto;background:transparent;color:var(--text);border:1px solid var(--line);padding:4px 7px}.attachment-list{max-height:130px;overflow:auto;margin-bottom:8px}.composer-tools{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.attach-btn{border:1px solid var(--line);background:var(--panel);color:var(--text);padding:9px 11px}.side-backdrop{display:none}@keyframes rise{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}body[data-theme="light"]{color-scheme:light;--bg:#f4f4f7;--panel:#fff;--panel2:#ececf2;--line:#d6d6e0;--text:#171720;--muted:#666675;--accent:#6954bd}body[data-theme="midnight"]{--bg:#05060b;--panel:#0b0d16;--panel2:#121626;--line:#242a3b;--text:#f4f5ff;--muted:#9ba3ba;--accent:#596edb}body[data-theme="purple"]{--bg:#100c18;--panel:#191323;--panel2:#241b33;--line:#3b2d4d;--text:#f7f0ff;--muted:#b4a6c7;--accent:#9063d7}body[data-motion="off"] *,body[data-motion="off"] *:before,body[data-motion="off"] *:after{animation:none!important;transition:none!important}@media(max-width:720px){.side{display:flex;position:fixed;inset:0 auto 0 0;width:min(285px,86vw);height:100dvh;transform:translateX(-105%);box-shadow:14px 0 30px #0005;z-index:10;transition:transform .24s ease;overflow-y:auto}.side.mobile-open{transform:translateX(0)}.app.sidebar-collapsed .side{width:min(285px,86vw);padding:15px;border-right:1px solid var(--line)}.side-backdrop.show{display:block;position:fixed;inset:0;background:rgba(0,0,0,.58);z-index:9;animation:backdropIn .18s ease both}.settings-grid{grid-template-columns:1fr}.top{gap:8px}.welcome{padding:20px 0}.content{padding:0 14px 12px}.composer{position:sticky;bottom:0;padding:10px 0 max(10px,env(safe-area-inset-bottom));z-index:1}.send{padding:10px 12px}.attach-btn{padding:10px 9px}.welcome h1{font-size:clamp(27px,8vw,38px)}.welcome .grid{margin-top:18px}}
 
-    <button class="primary sidebutton" id="newChat">＋ New chat</button>
-    <button class="sidebutton" id="chatTab">▤ Chat</button>
-    <button class="sidebutton" id="studioTab">▧ Image Studio</button>
+/* New-chat home: use the empty screen intentionally and keep the composer low. */
+.content{display:flex;flex-direction:column;min-height:0}.work{width:100%;min-height:100%;display:flex;flex-direction:column}#chatView{flex:1;min-height:calc(100dvh - 70px);display:flex;flex-direction:column}.welcome{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0;padding:clamp(24px,7vh,76px) 0 24px}.welcome h1{line-height:1.15}.welcome .muted{max-width:540px}.welcome .grid{max-width:650px;width:100%}.messages{flex:0 0 auto}.composer{margin-top:auto;align-items:stretch}.composer textarea{min-height:50px;max-height:150px;resize:vertical}.tagline{display:inline-block;width:max-content;max-width:100%;font-size:clamp(20px,4.5vw,30px);font-weight:750;letter-spacing:-.7px;line-height:1.3;white-space:normal;color:var(--text);position:relative;animation:taglineEnter .7s ease both}.tagline .accent-word{color:var(--accent)}.tagline:after{content:'';display:inline-block;height:1em;width:2px;background:var(--accent);vertical-align:-.12em;margin-left:5px;animation:caretBlink .85s steps(2,end) infinite}.welcome-kicker{font-size:11px;letter-spacing:2.4px;color:var(--muted);margin-bottom:13px}.welcome-sub{margin-top:12px;max-width:470px}.quick{min-height:76px;transition:transform .16s ease,border-color .16s ease,background .16s ease}.quick:active{transform:scale(.985)}@keyframes taglineEnter{from{opacity:0;transform:translateY(10px);filter:blur(3px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}@keyframes caretBlink{0%,48%{opacity:1}49%,100%{opacity:0}}@keyframes backdropIn{from{opacity:0}to{opacity:1}}@media(max-width:720px){#chatView{min-height:calc(100dvh - 68px)}.welcome{padding:clamp(20px,6vh,58px) 0 18px}.welcome-kicker{margin-bottom:10px}.welcome-sub{font-size:13px}.quick{min-height:68px;padding:12px}.messages{padding-bottom:8px}.composer{gap:6px}.composer textarea{min-width:0}.attachment-list{flex-shrink:0}}@media(prefers-reduced-motion:reduce){.tagline,.tagline:after,.side,.side-backdrop,.quick{animation:none!important;transition:none!important}}
 
-    <div class="muted">RECENT CHATS</div>
-    <div class="history" id="history"></div>
+/* VYRO polish pass: consistent theme tokens, rounded controls, and premium settings cards. */
+:root{--control-bg:var(--panel2);--control-border:var(--line);--surface-shadow:0 12px 34px rgba(0,0,0,.16);--radius:14px}
+button,input,textarea,select,.panel,.msg,.quick,.card,.modal-card,.logo{border-radius:var(--radius)!important}
+.btn,.quick,.attach-btn,.menu-btn,.send,.authbtn,.settings-grid select,.settings-grid input{transition:background .18s ease,border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.btn:hover,.quick:hover,.attach-btn:hover{border-color:var(--accent);box-shadow:0 5px 18px rgba(118,100,203,.12)}
+.settings-grid>div{padding:14px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;min-width:0}
+.settings-grid label{display:flex;align-items:center;gap:7px;color:var(--text);font-weight:650;font-size:13px;margin-bottom:9px}
+.settings-grid select,.settings-grid input{appearance:auto;min-height:44px;padding:10px 12px;border-radius:10px!important;background:var(--bg);color:var(--text);border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}
+.settings-grid select:focus,.settings-grid input:focus{outline:2px solid color-mix(in srgb,var(--accent) 65%,transparent);outline-offset:1px;border-color:var(--accent)}
+.modal-card{border-radius:20px!important;box-shadow:var(--surface-shadow);padding:clamp(16px,3vw,24px)}
+.modal-card>div:first-child{gap:12px}
+.modal-card h2{letter-spacing:-.4px}
+.modal-card .panel{border-radius:14px!important;padding:14px}
+.modal-card .panel button{margin:4px 5px 4px 0}
+#settingsSave{min-height:44px;padding:11px 18px;border-radius:12px!important;box-shadow:0 7px 20px rgba(118,100,203,.22)}
+body[data-theme="light"]{color-scheme:light;--control-bg:#fff;--control-border:#d8d8e5;--surface-shadow:0 12px 34px rgba(32,24,70,.09)}
+body[data-theme="light"] textarea,body[data-theme="light"] input,body[data-theme="light"] .settings-grid select,body[data-theme="light"] .settings-grid input{background:#fff;color:var(--text);border-color:var(--line)}
+body[data-theme="light"] .msg pre{background:#f0eff6;color:#20202a}
+body[data-theme="light"] .code-head{background:#e8e6f0;color:#454354}
+body[data-theme="light"] .copy-code{color:var(--text);border-color:var(--line)}
+body[data-theme="light"] .overlay{background:rgba(244,244,247,.94)}
+body[data-theme="light"] .modal-backdrop{background:rgba(24,20,40,.35)}
+body[data-theme="light"] .quick,body[data-theme="light"] .msg.user{background:#eeedf5}
+body[data-theme="dark"]{color-scheme:dark}
+body[data-theme="midnight"],body[data-theme="purple"]{color-scheme:dark}
+@media(max-width:720px){.settings-grid>div{padding:12px}.modal-card{border-radius:17px!important}.modal-card .panel button{width:100%;margin:4px 0}}
 
-    <div class="bottom">
-      <p class="muted" id="profile">Not signed in</p>
-      <button class="sidebutton" id="exportChats">Export chat history</button>
-      <button class="sidebutton" id="clearChats">Clear chat history</button>
-      <button class="sidebutton" id="logout">Sign out</button>
-    </div>
-  </aside>
 
-  <main class="main">
-    <header class="top">
-      <div style="display:flex;align-items:center;gap:9px">
-        <div class="logo" style="width:29px;height:29px">
-          <svg viewBox="0 0 32 32" fill="none">
-            <path d="M5 7L13 25L21 7M18 25L27 7"
-              stroke="#c4b7ff" stroke-width="3.2"/>
-          </svg>
-        </div>
-        <b>VYRO / Y10</b>
-      </div>
-      <span class="muted" id="topStatus">Ready</span>
-    </header>
+.settings-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:15px 0}.settings-tab{flex:1;min-width:105px;padding:10px 12px;border:1px solid var(--line);border-radius:12px!important;background:var(--panel2);color:var(--muted);font-weight:650}.settings-tab.active{background:color-mix(in srgb,var(--accent) 22%,var(--panel));border-color:var(--accent);color:var(--text);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 18%,transparent)}.settings-pane{animation:rise .16s ease both}.field-label{display:block;margin:10px 0 5px;color:var(--muted);font-size:12px}.modal-card,.settings-grid select,.settings-grid input,.settings-pane .panel,.settings-pane .btn{border-radius:12px!important}.settings-pane .btn{margin-top:6px}.settings-pane .panel{padding:15px}.settings-pane .panel h3{margin-top:0}.settings-grid select,.settings-grid input,.settings-pane input{border-radius:10px!important}body[data-theme="light"] .composer{background:var(--bg)}body[data-theme="light"] textarea,body[data-theme="light"] input{background:var(--panel);color:var(--text)}body[data-theme="light"] .msg.user{background:#ece8fa}body[data-theme="light"] .msg pre{background:#f1f0f7;color:#171720}body[data-theme="light"] .code-head{background:#e9e7f2;color:#454354}body[data-theme="light"] .quick{background:var(--panel)}
 
-    <section class="content" id="chatView">
-      <div class="welcome" id="welcome">
-        <div class="muted">VYRO AI · Y10</div>
-        <h1>Your questions.<br><span class="accent">My answers.</span></h1>
-        <p class="muted">Ask anything. Read files. Build something. Learn something new.</p>
-        <div class="grid">
-          <button class="quick" data-prompt="Explain a difficult topic in simple words.">
-            <strong>Learn</strong><span>Understand something new</span>
-          </button>
-          <button class="quick" data-prompt="Help me brainstorm creative ideas.">
-            <strong>Brainstorm</strong><span>Explore possibilities</span>
-          </button>
-          <button class="quick" data-prompt="Help me write and improve something.">
-            <strong>Write</strong><span>Draft and improve</span>
-          </button>
-          <button class="quick" data-prompt="Help me solve a problem step by step.">
-            <strong>Solve</strong><span>Work through a problem</span>
-          </button>
-        </div>
-      </div>
+</style></head><body>
+<div class="app"><aside class="side"><div class="brand"><div class="logo"><svg viewBox="0 0 32 32" fill="none"><path d="M5 7L13 25L21 7M18 25L27 7" stroke="#c4b7ff" stroke-width="3.2" stroke-linecap="square"/></svg></div>VYRO</div><button class="btn primary" id="new">＋ New chat</button><div class="side-tools"><button class="btn" id="settingsOpen">Settings</button><button class="btn" id="accountOpen">Account</button></div><div class="section">WORKSPACE</div><button class="btn" id="chatTab">▤ &nbsp; Chat</button><button class="btn" id="studioTab">▧ &nbsp; Image Studio</button><div class="section">RECENT CHATS</div><div class="history" id="history"></div><div class="bottom"><div class="muted" id="profile">Not signed in</div><button class="btn" id="clear">Clear chat history</button><button class="btn" id="logout">Sign out</button></div></aside>
+<div id="sideBackdrop" class="side-backdrop"></div><main class="main"><header class="top"><div style="display:flex;align-items:center;gap:9px"><button class="menu-btn" id="menuToggle" aria-label="Toggle sidebar">☰</button><div class="logo" style="width:28px;height:28px"><svg viewBox="0 0 32 32" fill="none"><path d="M5 7L13 25L21 7M18 25L27 7" stroke="#c4b7ff" stroke-width="3.2" stroke-linecap="square"/></svg></div><b>VYRO / Y10</b></div><div class="muted" id="topStatus">Ready</div></header><div class="content"><div class="work">
+<section id="chatView"><div class="welcome" id="welcome"><div class="welcome-kicker">VYRO AI · Y10</div><h1 class="tagline">Your questions. <span class="accent-word">My answers.</span> Deal?</h1><p class="muted welcome-sub">Ask anything. Build something. Learn something new. Let's get to it.</p><div class="grid"><button class="quick" data-p="Explain a difficult topic in simple words."><strong>Learn</strong><span>Understand something new</span></button><button class="quick" data-p="Help me brainstorm creative ideas."><strong>Brainstorm</strong><span>Explore possibilities</span></button><button class="quick" data-p="Help me write and improve a piece of writing."><strong>Write</strong><span>Draft, edit, improve</span></button><button class="quick" data-p="Help me make a clear step-by-step plan."><strong>Plan</strong><span>Organize next steps</span></button></div></div><div class="messages" id="messages"></div><div class="attachment-list" id="attachmentList"></div><div class="composer"><div style="display:flex;flex-direction:column;gap:6px"><button class="attach-btn" id="attachFiles" title="Attach files or choose a folder">＋ Attach</button><input id="fileInput" type="file" multiple hidden><input id="folderInput" type="file" webkitdirectory directory multiple hidden></div><textarea id="prompt" rows="1" maxlength="10000" placeholder="Message VYRO..."></textarea><button class="send" id="send">Send</button></div><p class="muted" style="text-align:center">VYRO can make mistakes. Attach screenshots/photos (up to 3 MB each, 6 MB total) or text/code files. Folder selection limit: 317 MB.</p></section>
+<section id="studioView" class="hidden"><div class="welcome"><h1>Image Studio</h1><p class="muted">Turn a text prompt into an image.</p></div><div class="panel"><h2>Describe your image</h2><textarea id="imagePrompt" maxlength="1500" placeholder="Describe the image you want to create..."></textarea><button class="btn primary" id="generate" style="margin-top:10px">Generate image</button><button class="btn" id="regen" style="margin:10px 0 0 8px">Regenerate</button><div class="status" id="imageStatus"></div><div class="image-result" id="imageResult"></div></div></section>
+</div></div></main></div>
+<div class="overlay hidden" id="login"><div class="card"><div class="brand"><div class="logo"><svg viewBox="0 0 32 32" fill="none"><path d="M5 7L13 25L21 7M18 25L27 7" stroke="#c4b7ff" stroke-width="3.2" stroke-linecap="square"/></svg></div>VYRO AI</div><h1 id="authTitle">Sign in</h1><p class="muted" id="authSub">Sign in to continue.</p><form id="authForm"><input id="email" type="email" autocomplete="email" placeholder="Email address" required><input id="password" type="password" autocomplete="current-password" minlength="6" placeholder="Password (at least 6 characters)" required><button class="authbtn" id="authSubmit">Sign in</button></form><button class="btn" id="switch">Create an account</button><button class="btn" id="resend">Resend verification email</button><div class="status" id="authStatus"></div></div></div>
 
-      <div class="messages" id="messages"></div>
-      <div class="attachments" id="attachments"></div>
-
-      <div class="composer">
-        <div style="display:flex;flex-direction:column;gap:5px">
-          <button id="attach">＋ Attach</button>
-          <input id="fileInput" type="file" multiple hidden>
-        </div>
-        <textarea id="prompt" rows="2" maxlength="10000"
-          placeholder="Message VYRO..."></textarea>
-        <button class="send" id="send">Send</button>
-      </div>
-
-      <p class="muted">
-        Attach documents, spreadsheets, presentations, code, text files,
-        or images. Large files may need to be reduced.
-      </p>
-    </section>
-
-    <section class="content hidden" id="studioView">
-      <h1>Image Studio</h1>
-      <p class="muted">Describe an image for VYRO to generate.</p>
-      <textarea id="imagePrompt" maxlength="1500"
-        placeholder="Describe the image you want..."></textarea>
-      <button class="primary" id="generate" style="margin-top:10px">
-        Generate image
-      </button>
-      <div class="status" id="imageStatus"></div>
-      <div id="imageResult"></div>
-    </section>
-  </main>
-</div>
-
-<div class="overlay" id="login">
-  <div class="card">
-    <div class="brand">VYRO AI</div>
-    <h1 id="authTitle">Sign in</h1>
-    <p class="muted" id="authSubtitle">Sign in to continue.</p>
-    <form id="authForm">
-      <input id="email" type="email" autocomplete="email"
-        placeholder="Email address" required>
-      <input id="password" type="password" minlength="6"
-        autocomplete="current-password"
-        placeholder="Password (at least 6 characters)" required>
-      <button class="primary" id="authSubmit">Sign in</button>
-    </form>
-    <button id="switchAuth">Create an account</button>
-    <button id="resetPassword">Reset password</button>
-    <div class="status" id="authStatus"></div>
-  </div>
-</div>
-
+<div class="modal-backdrop hidden" id="settingsModal"><div class="modal-card"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Settings</h2><button class="btn" id="settingsClose">Close</button></div><p class="muted">Your workspace, account, and analysis tools — all inside VYRO.</p><div class="settings-tabs" role="tablist"><button class="settings-tab active" data-settings-tab="appearance">✦ Appearance</button><button class="settings-tab" data-settings-tab="account">♙ Account</button><button class="settings-tab" data-settings-tab="analysis">▥ Data analysis</button></div><section class="settings-pane" id="pane-appearance"><div class="settings-grid"><div><label for="themeSelect">Appearance theme</label><select id="themeSelect"><option value="dark">Dark</option><option value="midnight">Midnight blue</option><option value="purple">Purple</option><option value="light">Light</option></select></div><div><label for="fontSelect">Text size</label><select id="fontSelect"><option value="14px">Default</option><option value="16px">Large</option><option value="18px">Extra large</option></select></div><div><label for="motionSelect">Animations</label><select id="motionSelect"><option value="on">On</option><option value="off">Reduced / off</option></select></div><div><label for="densitySelect">Message spacing</label><select id="densitySelect"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></div></div><div class="panel" style="margin-top:15px"><h3>Chat & privacy</h3><button class="btn" id="exportChats">Export chat history</button> <button class="btn" id="deleteChats">Delete local chat history</button><p class="muted">Your chat history and appearance preferences are stored in this browser.</p></div><button class="btn primary" id="settingsSave">Save appearance</button></section><section class="settings-pane hidden" id="pane-account"><div class="panel"><h3>Profile</h3><label class="field-label" for="settingsDisplayName">Display name</label><input id="settingsDisplayName" maxlength="60" placeholder="Your display name"><p class="muted" id="settingsAccountEmail">Sign in to manage your account.</p><button class="btn primary" id="settingsSaveName">Save profile</button></div><div class="panel"><h3>Security</h3><p class="muted">Password resets are sent to your verified account email.</p><button class="btn" id="settingsResetPassword">Send password reset email</button><button class="btn" id="settingsSignOut" style="margin-left:6px">Sign out</button><div class="status" id="settingsAccountStatus"></div></div></section><section class="settings-pane hidden" id="pane-analysis"><div class="panel"><h3>Analyze a dataset</h3><p class="muted">Attach a CSV, JSON, TXT, or spreadsheet export in the chat, then use this shortcut. VYRO will look for trends, missing values, outliers, comparisons, and actionable takeaways based on the data provided.</p><button class="btn primary" id="analyzeDataNow">▥ Analyze attached data</button><p class="muted">Tip: ask for a summary, column-by-column analysis, correlations, or a chart-ready table. Results depend on the contents and size of the data you attach.</p></div></section><div class="status" id="settingsStatus"></div></div></div>
+<div class="modal-backdrop hidden" id="accountModal"><div class="modal-card"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Account</h2><button class="btn" id="accountClose">Close</button></div><p class="muted">Manage your Firebase account profile.</p><label for="displayName" class="muted">Display name</label><input id="displayName" placeholder="Your display name" maxlength="60"><p class="muted" id="accountEmail">Not signed in</p><button class="btn primary" id="saveAccount">Save display name</button><button class="btn" id="resetPassword" style="margin-left:6px">Send password reset email</button><div class="status" id="accountStatus"></div></div></div>
 <script>
-(function(){
-"use strict";
-
-const $ = id => document.getElementById(id);
-
-let auth = null;
-let user = null;
-let authMode = "signin";
-let attachments = [];
-let chats = [];
-let chatId = null;
-let busy = false;
-
-const CHAT_KEY = "vyro_chats_v3";
-
-function escapeHTML(value) {
-  return String(value).replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",
-    '"':"&quot;","'":"&#39;"
-  }[c]));
-}
-
-function renderMarkdown(text) {
-  let s = escapeHTML(text);
-  s = s.replace(/```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g,
-    (_, lang, code) =>
-      '<pre><code>' + code + '</code></pre>');
-  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
-  s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  s = s.replace(/\*(.+?)\*/g, "<em>$1</em>");
-  s = s.replace(/\n/g, "<br>");
-  return s.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g,
-    '<pre><code>$1</code></pre>');
-}
-
-function loadChats() {
-  try {
-    chats = JSON.parse(localStorage.getItem(CHAT_KEY) || "[]");
-    if (!Array.isArray(chats)) chats = [];
-  } catch {
-    chats = [];
-  }
-}
-
-function saveChats() {
-  try {
-    localStorage.setItem(CHAT_KEY, JSON.stringify(chats));
-  } catch {
-    $("topStatus").textContent = "Browser storage is full";
-  }
-}
-
-function currentChat() {
-  let c = chats.find(x => x.id === chatId);
-  if (!c) {
-    c = {id:crypto.randomUUID(), title:"New chat", messages:[]};
-    chats.unshift(c);
-    chatId = c.id;
-  }
-  return c;
-}
-
-function renderHistory() {
-  const host = $("history");
-  host.innerHTML = "";
-  chats.slice(0,40).forEach(c => {
-    const b = document.createElement("button");
-    b.textContent = c.title || "New chat";
-    b.title = c.title || "New chat";
-    b.className = "sidebutton";
-    if (c.id === chatId) b.style.borderColor = "var(--accent)";
-    b.onclick = () => {
-      chatId = c.id;
-      renderHistory();
-      renderMessages();
-    };
-    host.appendChild(b);
-  });
-}
-
-function renderMessages() {
-  const c = currentChat();
-  $("welcome").classList.toggle("hidden", c.messages.length > 0);
-  const host = $("messages");
-  host.innerHTML = "";
-
-  c.messages.forEach(m => {
-    const el = document.createElement("div");
-    el.className = "msg " + (m.role === "user" ? "user" : "assistant");
-    const label = document.createElement("div");
-    label.className = "muted";
-    label.textContent = m.role === "user" ? "YOU" : "VYRO · Y10";
-
-    const content = document.createElement("div");
-    content.innerHTML = renderMarkdown(m.content || "");
-
-    el.append(label, content);
-    host.appendChild(el);
-  });
-
-  $("messages").scrollTop = $("messages").scrollHeight;
-}
-
-function addMessage(role, content) {
-  const c = currentChat();
-  c.messages.push({role,content});
-  if (c.title === "New chat" && role === "user") {
-    c.title = content.slice(0,45) || "New chat";
-  }
-  saveChats();
-  renderHistory();
-  renderMessages();
-}
-
-function newChat() {
-  chatId = crypto.randomUUID();
-  chats.unshift({id:chatId,title:"New chat",messages:[]});
-  saveChats();
-  renderHistory();
-  renderMessages();
-  $("prompt").focus();
-}
-
-function showLogin(show) {
-  $("login").classList.toggle("hidden", !show);
-}
-
-function authMessage(message, type) {
-  $("authStatus").textContent = message;
-  $("authStatus").className = "status " + (type || "");
-}
-
-function switchAuthMode(mode) {
-  authMode = mode;
-  $("authTitle").textContent = mode === "signup"
-    ? "Create an account" : "Sign in";
-  $("authSubtitle").textContent = mode === "signup"
-    ? "Create your VYRO account." : "Sign in to continue.";
-  $("authSubmit").textContent = mode === "signup"
-    ? "Create account" : "Sign in";
-  $("switchAuth").textContent = mode === "signup"
-    ? "Already have an account? Sign in" : "Create an account";
-  $("authStatus").textContent = "";
-}
-
-async function getToken() {
-  if (!auth || !user) throw new Error("Please sign in again.");
-  return await user.getIdToken(true);
-}
-
-async function api(path, payload) {
-  const token = await getToken();
-  const response = await fetch(path, {
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "Authorization":"Bearer " + token
-    },
-    body:JSON.stringify(payload)
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.error || "Request failed (" + response.status + ").");
-  }
-  return data;
-}
-
-// ============================================================
-// FILE READING
-// The extracted text is sent to the AI, not merely the filename.
-// ============================================================
-
-function loadScript(src) {
-  return new Promise((resolve,reject) => {
-    const existing = [...document.scripts].find(s => s.src === src);
-    if (existing) {
-      if (existing.dataset.loaded === "yes") return resolve();
-      existing.addEventListener("load",resolve,{once:true});
-      existing.addEventListener("error",reject,{once:true});
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.onload = () => {
-      script.dataset.loaded = "yes";
-      resolve();
-    };
-    script.onerror = () => reject(new Error(
-      "Could not load the document reader library. Check your internet connection."
-    ));
-    document.head.appendChild(script);
-  });
-}
-
-async function readPDF(file) {
-  await loadScript(
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
-  );
-
-  if (!window.pdfjsLib) throw new Error("PDF reader failed to initialize.");
-
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
-  const buffer = await file.arrayBuffer();
-  const pdf = await window.pdfjsLib.getDocument({data:buffer}).promise;
-  const output = [];
-
-  for (let i=1; i<=pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const data = await page.getTextContent();
-    const text = data.items.map(x => x.str || "").join(" ");
-    output.push("PAGE " + i + "\n" + text);
-    if (output.join("\n").length >= 90000) break;
-  }
-
-  const result = output.join("\n\n").slice(0,90000);
-  if (!result.trim()) {
-    throw new Error(
-      "This PDF contains no selectable text. It may be scanned; attach screenshots of its pages instead."
-    );
-  }
-  return result;
-}
-
-async function readDOCX(file) {
-  await loadScript(
-    "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"
-  );
-
-  if (!window.mammoth) throw new Error("DOCX reader failed to initialize.");
-
-  const result = await window.mammoth.extractRawText({
-    arrayBuffer:await file.arrayBuffer()
-  });
-
-  const text = (result.value || "").trim();
-  if (!text) throw new Error("No readable text was found in this DOCX.");
-  return text.slice(0,90000);
-}
-
-async function readSpreadsheet(file) {
-  await loadScript(
-    "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
-  );
-
-  if (!window.XLSX) throw new Error("Spreadsheet reader failed to initialize.");
-
-  const workbook = window.XLSX.read(await file.arrayBuffer(), {
-    type:"array"
-  });
-
-  const parts = [];
-
-  workbook.SheetNames.forEach(name => {
-    const sheet = workbook.Sheets[name];
-    const csv = window.XLSX.utils.sheet_to_csv(sheet);
-    parts.push("SHEET: " + name + "\n" + csv);
-  });
-
-  const result = parts.join("\n\n").slice(0,90000);
-  if (!result.trim()) throw new Error("The spreadsheet contains no readable data.");
-  return result;
-}
-
-async function readPPTX(file) {
-  await loadScript(
-    "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
-  );
-
-  if (!window.JSZip) throw new Error("Presentation reader failed to initialize.");
-
-  const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
-  const slideNames = Object.keys(zip.files)
-    .filter(n => /^ppt\/slides\/slide\d+\.xml$/i.test(n))
-    .sort((a,b) => {
-      const na = Number(a.match(/slide(\d+)/i)[1]);
-      const nb = Number(b.match(/slide(\d+)/i)[1]);
-      return na-nb;
-    });
-
-  const slides = [];
-
-  for (let i=0; i<slideNames.length; i++) {
-    const xml = await zip.files[slideNames[i]].async("text");
-    const doc = new DOMParser().parseFromString(xml,"application/xml");
-    const text = [...doc.getElementsByTagName("a:t")]
-      .map(n => n.textContent || "")
-      .join(" ");
-
-    slides.push("SLIDE " + (i+1) + "\n" + text);
-    if (slides.join("\n").length >= 90000) break;
-  }
-
-  const result = slides.join("\n\n").slice(0,90000);
-  if (!result.trim()) throw new Error("No readable slide text was found.");
-  return result;
-}
-
-async function readFileContents(file) {
-  const name = file.name || "unnamed file";
-  const ext = (name.split(".").pop() || "").toLowerCase();
-
-  if (file.size > 15*1024*1024) {
-    throw new Error("File is over 15 MB. Please attach a smaller file.");
-  }
-
-  if (file.type.startsWith("image/") ||
-      ["png","jpg","jpeg","webp","gif"].includes(ext)) {
-    if (!/^image\/(png|jpeg|jpg|webp|gif)$/i.test(file.type) &&
-        !["png","jpg","jpeg","webp","gif"].includes(ext)) {
-      throw new Error("Unsupported image format.");
-    }
-
-    if (file.size > 3*1024*1024) {
-      throw new Error("Images must be 3 MB or smaller. Resize the image and try again.");
-    }
-
-    return {
-      type:"image",
-      data:await new Promise((resolve,reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("Could not read image."));
-        reader.readAsDataURL(file);
-      })
-    };
-  }
-
-  if (["pdf"].includes(ext)) {
-    return {type:"text",text:await readPDF(file)};
-  }
-
-  if (["docx"].includes(ext)) {
-    return {type:"text",text:await readDOCX(file)};
-  }
-
-  if (["xlsx","xls","xlsm","ods"].includes(ext)) {
-    return {type:"text",text:await readSpreadsheet(file)};
-  }
-
-  if (["pptx"].includes(ext)) {
-    return {type:"text",text:await readPPTX(file)};
-  }
-
-  const textExtensions = [
-    "txt","md","csv","tsv","json","jsonl","xml","html","htm",
-    "css","js","mjs","cjs","ts","tsx","jsx","py","java","c",
-    "cpp","h","hpp","cs","go","rs","php","rb","swift","kt",
-    "sql","sh","bash","yaml","yml","toml","ini","conf","log",
-    "env.example","diff","patch","r","ipynb","svg","rtf"
-  ];
-
-  if (textExtensions.includes(ext) ||
-      file.type.startsWith("text/") ||
-      /json|javascript|xml|csv|yaml/i.test(file.type)) {
-    const text = (await file.text()).slice(0,90000);
-    if (!text.trim()) throw new Error("This file is empty.");
-    return {type:"text",text};
-  }
-
-  throw new Error(
-    "Unsupported file type: ." + ext +
-    ". Supported formats include PDF, DOCX, PPTX, XLSX, XLS, ODS, TXT, CSV, JSON, code files, and images."
-  );
-}
-
-function renderAttachments() {
-  const host = $("attachments");
-  host.innerHTML = "";
-
-  attachments.forEach((a,index) => {
-    const row = document.createElement("div");
-    row.className = "file";
-
-    const status = a.error
-      ? " — ERROR: " + a.error
-      : a.loading ? " — Reading..."
-      : a.text ? " — Content read"
-      : a.imageData ? " — Image ready"
-      : " — Not read";
-
-    const label = document.createElement("span");
-    label.textContent = a.name + status;
-    row.appendChild(label);
-
-    const remove = document.createElement("button");
-    remove.textContent = "Remove";
-    remove.onclick = () => {
-      attachments.splice(index,1);
-      renderAttachments();
-    };
-    row.appendChild(remove);
-    host.appendChild(row);
-  });
-}
-
-async function acceptFiles(fileList) {
-  const files = [...(fileList || [])];
-
-  for (const file of files) {
-    if (attachments.length >= 8) {
-      alert("You can attach up to 8 files at a time.");
-      break;
-    }
-
-    const item = {
-      name:file.name,
-      size:file.size,
-      loading:true,
-      text:"",
-      imageData:"",
-      error:""
-    };
-
-    attachments.push(item);
-    renderAttachments();
-
-    try {
-      const result = await readFileContents(file);
-      item.loading = false;
-
-      if (result.type === "image") {
-        item.imageData = result.data;
-      } else {
-        item.text = result.text;
-      }
-    } catch (error) {
-      item.loading = false;
-      item.error = error.message || "Unable to read this file.";
-    }
-
-    renderAttachments();
-  }
-
-  const good = attachments.filter(a => a.text || a.imageData).length;
-  const bad = attachments.filter(a => a.error).length;
-
-  $("topStatus").textContent =
-    good + " readable file(s)" + (bad ? ", " + bad + " error(s)" : "");
-}
-
-// ============================================================
-// CHAT
-// ============================================================
-
-async function send() {
-  if (busy) return;
-
-  const prompt = $("prompt").value.trim();
-  const ready = attachments.filter(a => a.text || a.imageData);
-  const pending = attachments.some(a => a.loading);
-  const errors = attachments.filter(a => a.error);
-
-  if (pending) {
-    alert("Please wait until file reading finishes.");
-    return;
-  }
-
-  if (!prompt && !ready.length) return;
-
-  if (!ready.length && errors.length && !prompt) {
-    alert("Your attachments could not be read. Choose a supported file or enter a message.");
-    return;
-  }
-
-  let userText = prompt;
-
-  if (ready.length) {
-    userText += "\n\nATTACHED FILE CONTENTS:\n";
-
-    ready.forEach(file => {
-      if (file.text) {
-        userText += "\n--- BEGIN FILE: " + file.name + " ---\n";
-        userText += file.text;
-        userText += "\n--- END FILE: " + file.name + " ---\n";
-      } else if (file.imageData) {
-        userText += "\nImage attached: " + file.name + ". Please inspect the image.\n";
-      }
-    });
-  }
-
-  if (errors.length) {
-    userText += "\n\nFILES THAT COULD NOT BE READ:\n" +
-      errors.map(a => a.name + ": " + a.error).join("\n") +
-      "\nDo not claim to have analyzed the contents of these unreadable files.";
-  }
-
-  if (userText.length > 110000) {
-    alert("The extracted content is too large. Remove some attachments or use smaller files.");
-    return;
-  }
-
-  $("prompt").value = "";
-  attachments = [];
-  renderAttachments();
-
-  addMessage("user",userText);
-
-  busy = true;
-  $("send").disabled = true;
-  $("topStatus").textContent = "VYRO is thinking...";
-
-  try {
-    const c = currentChat();
-    const recent = c.messages.slice(-12).map(m => ({
-      role:m.role,
-      content:m.content.slice(0,10000)
-    }));
-
-    const images = ready
-      .filter(a => a.imageData)
-      .slice(0,3)
-      .map(a => ({name:a.name,data:a.imageData}));
-
-    const result = await api("/api/chat",{
-      messages:recent,
-      images
-    });
-
-    addMessage("assistant",result.reply || "I couldn't generate a response.");
-    $("topStatus").textContent = "Ready";
-  } catch (error) {
-    addMessage("assistant","Request failed: " + (error.message || "Unknown error"));
-    $("topStatus").textContent = "Error";
-  } finally {
-    busy = false;
-    $("send").disabled = false;
-    $("prompt").focus();
-  }
-}
-
-// ============================================================
-// IMAGE GENERATION
-// ============================================================
-
-async function generateImage() {
-  const prompt = $("imagePrompt").value.trim();
-  if (!prompt) {
-    $("imageStatus").textContent = "Enter an image description first.";
-    return;
-  }
-
-  $("generate").disabled = true;
-  $("imageStatus").textContent = "Generating image...";
-  $("imageResult").innerHTML = "";
-
-  try {
-    const result = await api("/api/image",{prompt});
-
-    if (!result.image) throw new Error("No image was returned.");
-
-    const img = document.createElement("img");
-    img.alt = "Image generated by VYRO";
-    img.src = result.image;
-    $("imageResult").appendChild(img);
-
-    $("imageStatus").textContent = "Image generated successfully.";
-  } catch (error) {
-    $("imageStatus").textContent = error.message || "Image generation failed.";
-  } finally {
-    $("generate").disabled = false;
-  }
-}
-
-// ============================================================
-// AUTHENTICATION
-// ============================================================
-
-$("authForm").addEventListener("submit",async event => {
-  event.preventDefault();
-  if (!auth) return;
-
-  const email = $("email").value.trim();
-  const password = $("password").value;
-
-  $("authSubmit").disabled = true;
-  authMessage("Please wait...");
-
-  try {
-    if (authMode === "signup") {
-      const credential = await auth.createUserWithEmailAndPassword(email,password);
-      await credential.user.sendEmailVerification();
-      await auth.signOut();
-
-      authMessage(
-        "Account created. Check your email, verify your address, then sign in.",
-        "ok"
-      );
-      switchAuthMode("signin");
-      $("email").value = email;
-    } else {
-      const credential = await auth.signInWithEmailAndPassword(email,password);
-
-      if (!credential.user.emailVerified) {
-        await auth.signOut();
-        authMessage("Verify your email before signing in.","err");
-        return;
-      }
-
-      user = credential.user;
-      showLogin(false);
-    }
-  } catch (error) {
-    authMessage(error.message || "Authentication failed.","err");
-  } finally {
-    $("authSubmit").disabled = false;
-  }
-});
-
-$("switchAuth").onclick = () => {
-  switchAuthMode(authMode === "signin" ? "signup" : "signin");
-};
-
-$("resetPassword").onclick = async () => {
-  const email = $("email").value.trim();
-
-  if (!email) {
-    authMessage("Enter your email address first.","err");
-    return;
-  }
-
-  try {
-    await auth.sendPasswordResetEmail(email);
-    authMessage("Password reset email sent. Check your inbox.","ok");
-  } catch (error) {
-    authMessage(error.message || "Could not send reset email.","err");
-  }
-};
-
-$("logout").onclick = async () => {
-  if (auth) await auth.signOut();
-  user = null;
-  showLogin(true);
-};
-
-$("newChat").onclick = newChat;
-$("send").onclick = send;
-$("generate").onclick = generateImage;
-
-$("prompt").addEventListener("keydown",event => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    send();
-  }
-});
-
-$("attach").onclick = () => $("fileInput").click();
-
-$("fileInput").addEventListener("change",event => {
-  acceptFiles(event.target.files);
-  event.target.value = "";
-});
-
-$("chatTab").onclick = () => {
-  $("chatView").classList.remove("hidden");
-  $("studioView").classList.add("hidden");
-};
-
-$("studioTab").onclick = () => {
-  $("studioView").classList.remove("hidden");
-  $("chatView").classList.add("hidden");
-};
-
-document.querySelectorAll("[data-prompt]").forEach(button => {
-  button.onclick = () => {
-    $("prompt").value = button.dataset.prompt;
-    $("prompt").focus();
-  };
-});
-
-$("clearChats").onclick = () => {
-  if (!confirm("Delete all locally saved VYRO chats?")) return;
-  chats = [];
-  chatId = null;
-  saveChats();
-  newChat();
-};
-
-$("exportChats").onclick = () => {
-  const blob = new Blob([JSON.stringify(chats,null,2)],{
-    type:"application/json"
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "vyro-chat-history.json";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url),1000);
-};
-
-async function boot() {
-  loadChats();
-
-  try {
-    const response = await fetch("/api/config");
-    const config = await response.json();
-
-    if (!config.firebase || !config.firebase.apiKey) {
-      throw new Error(
-        "FIREBASE_API_KEY is missing from Cloudflare Worker variables."
-      );
-    }
-
-    firebase.initializeApp(config.firebase);
-    auth = firebase.auth();
-
-    auth.onAuthStateChanged(async currentUser => {
-      if (currentUser && currentUser.emailVerified) {
-        user = currentUser;
-        $("profile").textContent =
-          currentUser.displayName || currentUser.email || "Signed in";
-
-        showLogin(false);
-
-        if (!chatId || !chats.some(c => c.id === chatId)) {
-          chatId = chats.length ? chats[0].id : null;
-        }
-
-        if (!chatId) newChat();
-
-        renderHistory();
-        renderMessages();
-      } else {
-        if (currentUser) await auth.signOut();
-        user = null;
-        showLogin(true);
-      }
-    });
-  } catch (error) {
-    showLogin(true);
-    authMessage("Firebase setup error: " + error.message,"err");
-  }
-}
-
-boot();
+(()=>{'use strict';const $=id=>document.getElementById(id);let auth,user=null,mode='signin',busy=false,chats=[],chatId=null,lastImage='',attachments=[];const KEY='vyro_chat_history_v1',SETKEY='vyro_settings_v1',MAX_FILES=317*1024*1024;
+function authStatus(s,type=''){ $('authStatus').textContent=s;$('authStatus').className='status '+(type==='error'?'err':type==='ok'?'ok':'');}function status(s,type=''){ $('imageStatus').textContent=s;$('imageStatus').className='status '+(type==='error'?'err':type==='ok'?'ok':'');}function showLogin(v){$('login').classList.toggle('hidden',!v);}function setMode(m){mode=m;const up=m==='signup';$('authTitle').textContent=up?'Create your account':'Sign in';$('authSub').textContent=up?'Create a VYRO account with your email.':'Sign in to continue to VYRO.';$('authSubmit').textContent=up?'Create account':'Sign in';$('switch').textContent=up?'Already have an account? Sign in':'Create an account';$('password').autocomplete=up?'new-password':'current-password';authStatus('');}
+function loadChats(){try{chats=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(chats))chats=[];}catch{chats=[];}renderHistory();}function saveChats(){localStorage.setItem(KEY,JSON.stringify(chats.slice(0,40)));renderHistory();}function current(){return chats.find(c=>c.id===chatId);}function newChat(){const c={id:Date.now().toString(),title:'New chat',messages:[]};chats.unshift(c);chatId=c.id;saveChats();renderMessages();$('welcome').classList.remove('hidden');$('prompt').focus();}
+function renderHistory(){const h=$('history');h.replaceChildren();chats.forEach(c=>{const b=document.createElement('button');b.className='hist'+(c.id===chatId?' active':'');b.textContent=c.title||'New chat';b.onclick=()=>{chatId=c.id;renderHistory();renderMessages();if(innerWidth<=720)closeMobileSidebar();};h.appendChild(b);});}function addMsg(role,text){const c=current();if(!c)return;c.messages.push({role,text});if(role==='user'&&c.title==='New chat')c.title=text.slice(0,34)||'New chat';saveChats();renderMessages();}
+function renderRichText(body,text){const fence=String.fromCharCode(96).repeat(3),re=new RegExp(fence+'([^\\n]*)\\n([\\s\\S]*?)'+fence,'g');let last=0,match;while((match=re.exec(text))){if(match.index>last){const para=document.createElement('div');para.textContent=text.slice(last,match.index);body.appendChild(para);}const codeText=match[2],lang=(match[1]||'code').trim()||'code',wrap=document.createElement('div'),head=document.createElement('div'),copy=document.createElement('button'),pre=document.createElement('pre'),code=document.createElement('code');head.className='code-head';head.append(document.createTextNode(lang));copy.className='copy-code';copy.textContent='Copy code';copy.onclick=async()=>{try{await navigator.clipboard.writeText(codeText);copy.textContent='Copied!';setTimeout(()=>copy.textContent='Copy code',1200);}catch{const r=document.createRange();r.selectNodeContents(code);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);copy.textContent='Select code';}};head.appendChild(copy);code.textContent=codeText.replace(/\n$/,'');pre.appendChild(code);wrap.append(head,pre);body.appendChild(wrap);last=re.lastIndex;}if(last<text.length||!body.childNodes.length){const tail=document.createElement('div');tail.textContent=text.slice(last);body.appendChild(tail);}}
+function renderMessages(){const root=$('messages');root.replaceChildren();const c=current();$('welcome').classList.toggle('hidden',!!(c&&c.messages.length));if(!c)return;c.messages.forEach(m=>{const d=document.createElement('div');d.className='msg '+(m.role==='user'?'user':'');const tag=document.createElement('div');tag.className='tag';tag.textContent=m.role==='user'?'YOU':'VYRO · Y10';const body=document.createElement('div');renderRichText(body,m.text);d.append(tag,body);root.appendChild(d);});root.scrollTop=root.scrollHeight;}
+async function api(path,body){const token=await user.getIdToken();const res=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(body)});const data=await res.json().catch(()=>({error:'Server returned an invalid response.'}));if(!res.ok)throw new Error(data.error||'Request failed ('+res.status+').');return data;}
+async function send(){let text=$('prompt').value.trim();const imageFiles=attachments.filter(a=>a.imageData);if(attachments.length){const context=attachments.filter(a=>a.text).map(a=>'\n\n[Attached file: '+a.name+']\n'+a.text).join('');const names=attachments.map(a=>a.name).join(', ');text=(text||(imageFiles.length?'Please examine the attached image(s) and solve any questions in simple, easy steps.':'Please review the attached files: '+names))+context;if(!context&&!imageFiles.length)text+='\n\nAttached file names (contents not readable as text): '+names;}if(!text||busy||!user)return;if(!chatId)newChat();$('prompt').value='';const images=imageFiles.slice(0,3).map(a=>({name:a.name,data:a.imageData}));attachments=[];renderAttachments();addMsg('user',text+(images.length?'\n\n[Image attached: '+images.map(a=>a.name).join(', ')+']':''));busy=true;$('send').disabled=true;$('topStatus').textContent=images.length?'Reading image…':'Y10 is thinking…';try{const c=current();const history=c.messages.slice(-12).map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.text}));const result=await api('/api/chat',{messages:history,images});addMsg('assistant',result.reply||'I could not generate a reply.');}catch(e){addMsg('assistant','Sorry, the request failed: '+e.message);}finally{busy=false;$('send').disabled=false;$('topStatus').textContent='Ready';$('prompt').focus();}}
+async function generate(){const prompt=$('imagePrompt').value.trim()||lastImage;if(!prompt||busy||!user){status('Enter a prompt and sign in first.','error');return;}lastImage=prompt;busy=true;$('generate').disabled=true;status('Creating your image…');$('imageResult').replaceChildren();try{const result=await api('/api/image',{prompt});if(!result.image)throw new Error('The image service returned no image.');const img=document.createElement('img');img.alt='Image generated by VYRO';img.src=result.image;$('imageResult').appendChild(img);status('Image created.','ok');}catch(e){status('Image generation failed: '+e.message,'error');}finally{busy=false;$('generate').disabled=false;}}
+function renderAttachments(){const root=$('attachmentList');root.replaceChildren();attachments.forEach((a,i)=>{const row=document.createElement('div');row.className='file-chip';row.textContent=a.name+' · '+(a.size<1024*1024?(a.size/1024).toFixed(1)+' KB':(a.size/1024/1024).toFixed(1)+' MB');const rm=document.createElement('button');rm.textContent='Remove';rm.onclick=()=>{attachments.splice(i,1);renderAttachments();};row.appendChild(rm);root.appendChild(row);});}
+async function acceptFiles(files){const list=Array.from(files||[]);const total=attachments.reduce((n,f)=>n+f.size,0)+list.reduce((n,f)=>n+f.size,0);if(total>MAX_FILES){alert('The selected files exceed the 317 MB total limit. Remove some files and try again.');return;}for(const f of list){const name=f.webkitRelativePath||f.name;if(attachments.some(a=>a.name===name))continue;let text='',imageData='';if(f.type&&f.type.startsWith('image/')){const currentImageBytes=attachments.filter(a=>a.imageData).reduce((n,a)=>n+a.size,0);if(f.size>3*1024*1024||currentImageBytes+f.size>6*1024*1024){alert('For image understanding, each image must be 3 MB or smaller and total image size must be 6 MB or less. Please resize the screenshot or attach fewer images.');continue;}try{imageData=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(new Error('Could not read image'));reader.readAsDataURL(f);});}catch{alert('Could not read image: '+name);continue;}}else if(/\.(txt|md|csv|json|js|ts|html|css|py|java|c|cpp|h|xml|yaml|yml|toml|log|sql|sh)$/i.test(f.name)&&f.size<=2*1024*1024){try{text=(await f.text()).slice(0,30000);}catch{}}attachments.push({name,size:f.size,text,imageData});}renderAttachments();$('topStatus').textContent=attachments.length+' file(s) attached';}
+function readSettings(){const defaults={theme:'dark',font:'14px',motion:'on',density:'comfortable'};let saved={};try{saved=JSON.parse(localStorage.getItem(SETKEY)||'{}')||{};}catch{}const a={...defaults,...saved};if(!['dark','midnight','purple','light'].includes(a.theme))a.theme='dark';if(!['14px','16px','18px'].includes(a.font))a.font='14px';if(!['on','off'].includes(a.motion))a.motion='on';if(!['comfortable','compact'].includes(a.density))a.density='comfortable';return a;}
+function applySettings(a){document.body.dataset.theme=a.theme;document.body.dataset.motion=a.motion;document.body.style.fontSize=a.font;document.documentElement.style.setProperty('--msg-gap',a.density==='compact'?'5px':'10px');const messages=$('messages');if(messages)messages.style.gap=a.density==='compact'?'5px':'10px';const list=$('.messages');if(list)list.style.gap=a.density==='compact'?'5px':'10px';}
+function loadSettings(){const a=readSettings();applySettings(a);$('themeSelect').value=a.theme;$('fontSelect').value=a.font;$('motionSelect').value=a.motion;$('densitySelect').value=a.density;}
+function saveSettings(){const a={theme:$('themeSelect').value,font:$('fontSelect').value,motion:$('motionSelect').value,density:$('densitySelect').value};localStorage.setItem(SETKEY,JSON.stringify(a));applySettings(a);$('settingsStatus').textContent='✓ Settings saved on this device.';}
+function downloadText(name,text){const blob=new Blob([text],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+$('attachFiles').onclick=()=>{const choice=confirm('OK = choose files. Cancel = choose a folder.');(choice?$('fileInput'):$('folderInput')).click();};$('fileInput').onchange=e=>{acceptFiles(e.target.files);e.target.value='';};$('folderInput').onchange=e=>{acceptFiles(e.target.files);e.target.value='';};
+$('settingsOpen').onclick=()=>$('settingsModal').classList.remove('hidden');$('settingsClose').onclick=()=>$('settingsModal').classList.add('hidden');$('settingsSave').onclick=saveSettings;['themeSelect','fontSelect','motionSelect','densitySelect'].forEach(id=>$(id).addEventListener('change',()=>{const a={theme:$('themeSelect').value,font:$('fontSelect').value,motion:$('motionSelect').value,density:$('densitySelect').value};applySettings(a);$('settingsStatus').textContent='Previewing changes — select Save settings to keep them.';}));$('accountOpen').onclick=()=>{$('displayName').value=user?.displayName||'';$('accountEmail').textContent=user?.email||'Not signed in';$('accountStatus').textContent='';$('accountModal').classList.remove('hidden');};$('accountClose').onclick=()=>$('accountModal').classList.add('hidden');$('saveAccount').onclick=async()=>{try{if(!user)throw new Error('Sign in first.');await user.updateProfile({displayName:$('displayName').value.trim()});$('profile').textContent=user.displayName||user.email;$('accountStatus').textContent='Display name updated.';}catch(e){$('accountStatus').textContent=e.message;}};$('resetPassword').onclick=async()=>{try{if(!auth||!user?.email)throw new Error('Sign in first.');await auth.sendPasswordResetEmail(user.email);$('accountStatus').textContent='Password reset email sent. Check your inbox.';}catch(e){$('accountStatus').textContent=e.message;}};
+document.querySelectorAll('[data-settings-tab]').forEach(tab=>tab.onclick=()=>{document.querySelectorAll('[data-settings-tab]').forEach(t=>t.classList.toggle('active',t===tab));document.querySelectorAll('.settings-pane').forEach(p=>p.classList.toggle('hidden',p.id!=='pane-'+tab.dataset.settingsTab));if(tab.dataset.settingsTab==='account'){ $('settingsDisplayName').value=user?.displayName||'';$('settingsAccountEmail').textContent=user?.email||'Not signed in';$('settingsAccountStatus').textContent='';}});$('settingsSaveName').onclick=async()=>{try{if(!user)throw new Error('Sign in first.');const name=$('settingsDisplayName').value.trim();await user.updateProfile({displayName:name});$('profile').textContent=user.displayName||user.email;$('settingsAccountEmail').textContent=user.email||'';$('settingsAccountStatus').textContent='Profile saved.';}catch(e){$('settingsAccountStatus').textContent=e.message||'Could not save profile.';}};$('settingsResetPassword').onclick=async()=>{try{if(!auth||!user?.email)throw new Error('Sign in first.');await auth.sendPasswordResetEmail(user.email);$('settingsAccountStatus').textContent='Password reset email sent. Check your inbox.';}catch(e){$('settingsAccountStatus').textContent=e.message||'Could not send reset email.';}};$('settingsSignOut').onclick=async()=>{if(auth)await auth.signOut();user=null;showLogin(true);$('settingsModal').classList.add('hidden');$('profile').textContent='Not signed in';};$('analyzeDataNow').onclick=()=>{ $('settingsModal').classList.add('hidden');$('chatView').classList.remove('hidden');$('studioView').classList.add('hidden');const hasData=attachments.some(a=>a.text);$('prompt').value=hasData?'Analyze the attached dataset carefully. Summarize its structure, key statistics, missing values, notable trends and outliers, and practical conclusions. Show calculations or assumptions where possible.':'I want to analyze data. Tell me which data format to attach, then analyze the supplied rows for summary statistics, missing values, trends, outliers, and actionable insights.';$('prompt').focus();};$('exportChats').onclick=()=>downloadText('vyro-chat-history.json',JSON.stringify(chats,null,2));$('deleteChats').onclick=()=>{if(confirm('Delete saved chats from this browser?')){chats=[];chatId=null;saveChats();renderMessages();$('settingsStatus').textContent='Local chat history deleted.';}};$('menuToggle').onclick=()=>{const app=document.querySelector('.app'),side=document.querySelector('.side');if(innerWidth<=720){const open=!side.classList.contains('mobile-open');side.classList.toggle('mobile-open',open);$('sideBackdrop').classList.toggle('show',open);$('menuToggle').setAttribute('aria-expanded',String(open));}else{app.classList.toggle('sidebar-collapsed');$('menuToggle').setAttribute('aria-expanded',String(!app.classList.contains('sidebar-collapsed')));}};function closeMobileSidebar(){document.querySelector('.side').classList.remove('mobile-open');$('sideBackdrop').classList.remove('show');$('menuToggle').setAttribute('aria-expanded','false');} $('sideBackdrop').onclick=closeMobileSidebar;document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobileSidebar();});
+$('authForm').addEventListener('submit',async e=>{e.preventDefault();if(!auth)return;const email=$('email').value.trim(),password=$('password').value;authStatus('Please wait…');$('authSubmit').disabled=true;try{if(mode==='signup'){const cred=await auth.createUserWithEmailAndPassword(email,password);await cred.user.sendEmailVerification();await auth.signOut();authStatus('Account created. Check your inbox and spam folder, verify your email, then sign in.','ok');setMode('signin');$('email').value=email;}else{const cred=await auth.signInWithEmailAndPassword(email,password);if(!cred.user.emailVerified){await auth.signOut();authStatus('Please verify your email before signing in.','error');return;}user=cred.user;showLogin(false);$('profile').textContent=user.email||'Signed in';loadChats();if(!chatId&&chats.length)chatId=chats[0].id;if(!chatId)newChat();renderHistory();renderMessages();}}catch(err){authStatus(err.message||'Authentication failed.','error');}finally{$('authSubmit').disabled=false;}});
+$('switch').onclick=()=>setMode(mode==='signin'?'signup':'signin');$('resend').onclick=async()=>{try{const email=$('email').value.trim(),password=$('password').value;if(!email||!password)throw new Error('Enter your email and password first.');const cred=await auth.signInWithEmailAndPassword(email,password);if(cred.user.emailVerified){await auth.signOut();throw new Error('This email is already verified. You can sign in.');}await cred.user.sendEmailVerification();await auth.signOut();authStatus('Verification email sent. Check your inbox and spam folder.','ok');}catch(e){authStatus(e.message||'Could not resend verification email.','error');}};
+$('send').onclick=send;$('prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});$('new').onclick=()=>{newChat();if(innerWidth<=720)closeMobileSidebar();};$('chatTab').onclick=()=>{$('chatView').classList.remove('hidden');$('studioView').classList.add('hidden');if(innerWidth<=720)closeMobileSidebar();};$('studioTab').onclick=()=>{$('studioView').classList.remove('hidden');$('chatView').classList.add('hidden');if(innerWidth<=720)closeMobileSidebar();};$('generate').onclick=generate;$('regen').onclick=generate;$('clear').onclick=()=>{if(confirm('Clear all locally saved chat history?')){chats=[];chatId=null;saveChats();renderMessages();}};$('logout').onclick=async()=>{if(auth)await auth.signOut();user=null;showLogin(true);$('profile').textContent='Not signed in';};document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{$('prompt').value=b.dataset.p;send();});
+async function boot(){loadSettings();showLogin(false);try{const r=await fetch('/api/config');const cfg=await r.json();if(!cfg.firebase||!cfg.firebase.apiKey)throw new Error('Set FIREBASE_API_KEY in Cloudflare Worker variables, then reload.');firebase.initializeApp(cfg.firebase);auth=firebase.auth();auth.onAuthStateChanged(async u=>{user=u;if(u&&u.emailVerified){showLogin(false);$('profile').textContent=u.displayName||u.email||'Signed in';loadChats();if(!chatId&&chats.length)chatId=chats[0].id;if(!chatId)newChat();renderHistory();renderMessages();}else{if(u)await auth.signOut();user=null;showLogin(true);}});}catch(e){showLogin(true);authStatus('Firebase setup: '+e.message,'error');}}boot();
 })();
-</script>
-</body>
-</html>`;
+</script></body></html>`;
 
 function json(data, status = 200, request) {
-  const headers = {
-    "Content-Type":"application/json; charset=utf-8",
-    "Cache-Control":"no-store"
-  };
-
-  if (request) Object.assign(headers,corsHeaders(request));
-
-  return new Response(JSON.stringify(data),{status,headers});
+  const headers = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
+  if (request) Object.assign(headers, corsHeaders(request));
+  return new Response(JSON.stringify(data), { status, headers });
 }
-
 function corsHeaders(request) {
-  return {
-    "Access-Control-Allow-Origin":request.headers.get("Origin") || "*",
-    "Access-Control-Allow-Methods":"GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers":"Content-Type, Authorization",
-    "Vary":"Origin"
-  };
+  return { "Access-Control-Allow-Origin": request.headers.get("Origin") || "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization", "Vary": "Origin" };
 }
-
-async function verifyFirebaseToken(request,env) {
+async function verifyFirebaseToken(request, env) {
   const header = request.headers.get("Authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
-
   if (!match) throw new Error("Please sign in again.");
-
   const apiKey = env.FIREBASE_API_KEY;
-  if (!apiKey) {
-    throw new Error("FIREBASE_API_KEY is not configured in Cloudflare.");
-  }
-
-  const response = await fetch(
-    "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" +
-      encodeURIComponent(apiKey),
-    {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({idToken:match[1]})
-    }
-  );
-
+  if (!apiKey) throw new Error("FIREBASE_API_KEY is not set in Cloudflare Worker variables.");
+  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: match[1] }) });
   const data = await response.json().catch(() => ({}));
   const account = data.users && data.users[0];
-
-  if (!response.ok || !account) {
-    throw new Error("Your session is invalid. Sign in again.");
-  }
-
-  if (!account.emailVerified) {
-    throw new Error("Verify your email before using VYRO.");
-  }
-
+  if (!response.ok || !account) throw new Error("Your session is invalid. Sign in again.");
+  if (!account.emailVerified) throw new Error("Verify your email before using VYRO.");
   return account;
 }
-
 export default {
-  async fetch(request,env) {
+  async fetch(request, env) {
     const url = new URL(request.url);
-
-    if (request.method === "OPTIONS") {
-      return new Response(null,{headers:corsHeaders(request)});
-    }
-
-    if (url.pathname === "/" || url.pathname === "/index.html") {
-      return new Response(HTML,{
-        headers:{
-          "Content-Type":"text/html; charset=utf-8",
-          "Cache-Control":"no-store"
-        }
-      });
-    }
-
-    if (url.pathname === "/api/health") {
-      return json({
-        ok:true,
-        service:"VYRO AI",
-        engine:"Y10",
-        ai:!!env.AI
-      },200,request);
-    }
-
-    if (url.pathname === "/api/config") {
-      return json({
-        ok:true,
-        firebase:{
-          ...FIREBASE_CONFIG,
-          apiKey:env.FIREBASE_API_KEY || ""
-        },
-        engine:"Y10"
-      },200,request);
-    }
-
-    if (request.method !== "POST") {
-      return json({error:"Not found."},404,request);
-    }
-
+    if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders(request) });
+    if (url.pathname === "/api/health") return json({ ok: true, service: "VYRO AI", engine: "Y10", ai: !!env.AI }, 200, request);
+    if (url.pathname === "/" || url.pathname === "/index.html") return new Response(HTML, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+    if (url.pathname === "/api/config") return json({ ok: true, firebase: { ...FIREBASE_CONFIG, apiKey: env.FIREBASE_API_KEY || "" }, engine: "Y10" }, 200, request);
+    if (request.method !== "POST") return json({ error: "Not found." }, 404, request);
     let body;
-
+    try { body = await request.json(); } catch { return json({ error: "Invalid JSON request." }, 400, request); }
     try {
-      body = await request.json();
-    } catch {
-      return json({error:"Invalid JSON request."},400,request);
-    }
-
-    try {
-      await verifyFirebaseToken(request,env);
-
-      if (!env.AI) {
-        return json({
-          error:"Cloudflare Workers AI binding named AI is missing."
-        },500,request);
-      }
-
+      await verifyFirebaseToken(request, env);
       if (url.pathname === "/api/chat") {
-        const incoming = Array.isArray(body.messages)
-          ? body.messages.slice(-12)
-          : [];
-
-        const messages = [{
-          role:"system",
-          content:SYSTEM_PROMPT
-        }];
-
-        for (const m of incoming) {
-          if (!m || !["user","assistant"].includes(m.role)) continue;
-
-          messages.push({
-            role:m.role,
-            content:String(m.content || "").slice(0,12000)
-          });
-        }
-
-        const images = Array.isArray(body.images)
-          ? body.images.slice(0,3)
-          : [];
-
+        if (!env.AI) return json({ error: "Cloudflare Workers AI binding named AI is missing." }, 500, request);
+        const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+        const safeMessages = messages.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content || "").slice(0, 10000) }));
+        const systemPrompt = "You are VYRO, a capable, thoughtful, high-quality AI assistant. The public product/engine label is Y10. If asked what your engine is called, say Y10; never falsely claim to be ChatGPT or misrepresent the underlying model. Be accurate, clear, practical, and appropriately concise. Solve the actual task rather than giving generic filler. For complex questions, reason carefully and present a useful result with steps or assumptions. For data analysis, treat supplied CSV/JSON/table content as data: identify columns and data types, summarize row/column counts when inferable, inspect missing or malformed values, calculate statistics only from values actually supplied, identify trends/outliers cautiously, distinguish correlation from causation, and provide clear conclusions plus caveats. Never fabricate calculations or claim to have executed code unless you did. If data is too large or incomplete, explain the limitation and ask for a smaller sample or focused question. If an image is attached, inspect visible text carefully and solve requested exercises in simple steps; state what is unreadable if necessary. Never invent facts: distinguish evidence, inference, and uncertainty. For Urdu, answer in accessible Urdu or transliteration when helpful. Put code in fenced Markdown blocks with language labels. Do not claim to browse the live internet or access information you do not have.";
+        safeMessages.unshift({ role: "system", content: systemPrompt });
+        const images = Array.isArray(body.images) ? body.images.slice(0, 3) : [];
         let result;
-
         if (images.length) {
-          const totalChars = images.reduce(
-            (sum,image) => sum + String(image.data || "").length,0
-          );
-
-          if (totalChars > 8*1024*1024) {
-            return json({
-              error:"Images are too large. Resize them and try again."
-            },413,request);
-          }
-
-          const validImages = images.filter(image =>
-            typeof image.data === "string" &&
-            /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(image.data)
-          );
-
-          if (!validImages.length) {
-            return json({
-              error:"No supported image data was received. Attach the image again."
-            },400,request);
-          }
-
-          const lastUser = messages.map(m => m.role).lastIndexOf("user");
-
-          if (lastUser < 0) {
-            return json({
-              error:"Please enter a message with your image."
-            },400,request);
-          }
-
-          const originalText = String(messages[lastUser].content || "");
-
-          messages[lastUser] = {
-            role:"user",
-            content:[
-              ...validImages.map(image => ({
-                type:"image_url",
-                image_url:{url:image.data}
-              })),
-              {type:"text",text:originalText}
-            ]
-          };
-
-          result = await env.AI.run(VISION_MODEL,{
-            messages,
-            max_tokens:1500,
-            temperature:0.3,
-            top_p:0.9
-          });
+          const totalImageChars = images.reduce((n, img) => n + String(img.data || "").length, 0);
+          if (totalImageChars > 8 * 1024 * 1024) return json({ error: "Images are too large. Attach smaller screenshots (3 MB each, 6 MB total)." }, 413, request);
+          const validImages = images.filter(img => typeof img.data === "string" && /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(img.data));
+          if (!validImages.length) return json({ error: "No supported image data was received. Please attach a JPG, PNG, or WebP screenshot again." }, 400, request);
+          const lastUserIndex = safeMessages.map(m => m.role).lastIndexOf("user");
+          if (lastUserIndex < 0) return json({ error: "Please add a message with your image." }, 400, request);
+          const lastText = String(safeMessages[lastUserIndex].content || "Please inspect this image and help me.");
+          safeMessages[lastUserIndex] = { role: "user", content: [ ...validImages.map(img => ({ type: "image_url", image_url: { url: img.data } })), { type: "text", text: lastText } ] };
+          result = await env.AI.run(VISION_MODEL, { messages: safeMessages, max_tokens: 1500, temperature: 0.3, top_p: 0.9 });
         } else {
-          result = await env.AI.run(CHAT_MODEL,{
-            messages,
-            max_tokens:1800,
-            temperature:0.45,
-            top_p:0.9,
-            repetition_penalty:1.08
-          });
+          result = await env.AI.run(CHAT_MODEL, { messages: safeMessages, max_tokens: 1400, temperature: 0.45, top_p: 0.9, repetition_penalty: 1.08 });
         }
-
+        // Workers AI models may return different response shapes. Normalize common formats.
         function extractText(value) {
           if (typeof value === "string") return value.trim();
-
-          if (Array.isArray(value)) {
-            return value.map(extractText).filter(Boolean).join("\n").trim();
-          }
-
+          if (Array.isArray(value)) return value.map(extractText).filter(Boolean).join("\n").trim();
           if (value && typeof value === "object") {
-            for (const key of ["response","output_text","description","text"]) {
-              if (typeof value[key] === "string" && value[key].trim()) {
-                return value[key].trim();
-              }
-            }
-
+            if (typeof value.response === "string" && value.response.trim()) return value.response.trim();
+            if (typeof value.output_text === "string" && value.output_text.trim()) return value.output_text.trim();
+            if (typeof value.description === "string" && value.description.trim()) return value.description.trim();
+            if (typeof value.text === "string" && value.text.trim()) return value.text.trim();
             const choice = value.choices && value.choices[0];
-
             if (choice) {
               const content = choice.message && choice.message.content;
-
-              if (typeof content === "string") return content.trim();
-
-              if (Array.isArray(content)) {
-                return content.map(part => part.text || part.content || "")
-                  .filter(Boolean).join("\n").trim();
-              }
-
-              if (typeof choice.text === "string") return choice.text.trim();
+              if (typeof content === "string" && content.trim()) return content.trim();
+              if (Array.isArray(content)) return content.map(part => part && (part.text || part.content) || "").filter(Boolean).join("\n").trim();
+              if (typeof choice.text === "string" && choice.text.trim()) return choice.text.trim();
             }
-
-            if (value.result !== undefined && value.result !== value) {
-              return extractText(value.result);
-            }
-
-            if (value.message && typeof value.message.content === "string") {
-              return value.message.content.trim();
-            }
+            if (value.result !== undefined && value.result !== value) return extractText(value.result);
+            if (value.message && typeof value.message.content === "string") return value.message.content.trim();
           }
-
           return "";
         }
-
         const reply = extractText(result);
-
         if (!reply) {
-          return json({
-            error:"The AI model returned no text. Please retry once."
-          },502,request);
+          const shape = result && typeof result === "object" ? Object.keys(result).join(", ") : typeof result;
+          return json({ error: `The AI model returned no text. Returned data fields: ${shape || "none"}. Please retry once; if it repeats, send this exact message to troubleshoot.` }, 502, request);
         }
-
-        return json({reply},200,request);
+        return json({ reply }, 200, request);
       }
-
       if (url.pathname === "/api/image") {
-        const prompt = String(body.prompt || "").trim().slice(0,1500);
-
-        if (!prompt) {
-          return json({error:"Enter an image description first."},400,request);
-        }
-
-        const result = await env.AI.run(IMAGE_MODEL,{
-          prompt,
-          num_steps:4
-        });
-
+        if (!env.AI) return json({ error: "Cloudflare Workers AI binding named AI is missing." }, 500, request);
+        const prompt = String(body.prompt || "").trim().slice(0, 1500);
+        if (!prompt) return json({ error: "Please enter an image prompt." }, 400, request);
+        const result = await env.AI.run(IMAGE_MODEL, { prompt, num_steps: 4 });
         let imageData = result && (result.image || result.data);
-
         if (Array.isArray(imageData)) imageData = imageData[0];
-
-        if (typeof imageData === "string") {
-          return json({
-            image:imageData.startsWith("data:")
-              ? imageData
-              : "data:image/png;base64," + imageData
-          },200,request);
-        }
-
-        if (imageData instanceof Uint8Array ||
-            imageData instanceof ArrayBuffer) {
-          const bytes = imageData instanceof Uint8Array
-            ? imageData
-            : new Uint8Array(imageData);
-
+        if (typeof imageData === "string") return json({ image: imageData.startsWith("data:") ? imageData : "data:image/png;base64," + imageData }, 200, request);
+        if (imageData instanceof Uint8Array || imageData instanceof ArrayBuffer) {
+          const bytes = imageData instanceof Uint8Array ? imageData : new Uint8Array(imageData);
           let binary = "";
-
-          for (let i=0;i<bytes.length;i+=0x8000) {
-            binary += String.fromCharCode(...bytes.subarray(i,i+0x8000));
-          }
-
-          return json({
-            image:"data:image/png;base64," + btoa(binary)
-          },200,request);
+          for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          return json({ image: "data:image/png;base64," + btoa(binary) }, 200, request);
         }
-
-        return json({
-          error:"The image model returned an unsupported image format."
-        },502,request);
+        return json({ error: "The image model returned an unsupported image format." }, 502, request);
       }
-
-      return json({error:"Not found."},404,request);
+      return json({ error: "Not found." }, 404, request);
     } catch (error) {
-      const message = error && error.message
-        ? error.message
-        : "Request failed.";
-
-      const status = /sign in|session|verify|FIREBASE_API_KEY/i.test(message)
-        ? 401
-        : 500;
-
-      return json({error:message},status,request);
+      const message = error && error.message ? error.message : "Request failed.";
+      const status = /sign in|session|verify|FIREBASE_API_KEY/i.test(message) ? 401 : 500;
+      return json({ error: message }, status, request);
     }
   }
 };
