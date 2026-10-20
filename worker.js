@@ -121,14 +121,38 @@ export default {
           const lastUserIndex = safeMessages.map(m => m.role).lastIndexOf("user");
           if (lastUserIndex < 0) return json({ error: "Please add a message with your image." }, 400, request);
           const lastText = String(safeMessages[lastUserIndex].content || "Please inspect this image and help me.");
-          safeMessages[lastUserIndex] = { role: "user", content: [ { type: "text", text: lastText }, ...validImages.map(img => ({ type: "image_url", image_url: { url: img.data } })) ] };
+          safeMessages[lastUserIndex] = { role: "user", content: [ ...validImages.map(img => ({ type: "image_url", image_url: { url: img.data } })), { type: "text", text: lastText } ] };
           result = await env.AI.run(VISION_MODEL, { messages: safeMessages, max_tokens: 1800, temperature: 0.35, top_p: 0.9 });
         } else {
           result = await env.AI.run(CHAT_MODEL, { messages: safeMessages, max_tokens: 1800, temperature: 0.55, top_p: 0.9, repetition_penalty: 1.08 });
         }
-        const reply = result.response || result.result || result.output_text;
-        if (!reply) return json({ error: "The AI model returned an empty response." }, 502, request);
-        return json({ reply: String(reply) }, 200, request);
+        // Workers AI models may return different response shapes. Normalize common formats.
+        function extractText(value) {
+          if (typeof value === "string") return value.trim();
+          if (Array.isArray(value)) return value.map(extractText).filter(Boolean).join("\n").trim();
+          if (value && typeof value === "object") {
+            if (typeof value.response === "string" && value.response.trim()) return value.response.trim();
+            if (typeof value.output_text === "string" && value.output_text.trim()) return value.output_text.trim();
+            if (typeof value.description === "string" && value.description.trim()) return value.description.trim();
+            if (typeof value.text === "string" && value.text.trim()) return value.text.trim();
+            const choice = value.choices && value.choices[0];
+            if (choice) {
+              const content = choice.message && choice.message.content;
+              if (typeof content === "string" && content.trim()) return content.trim();
+              if (Array.isArray(content)) return content.map(part => part && (part.text || part.content) || "").filter(Boolean).join("\n").trim();
+              if (typeof choice.text === "string" && choice.text.trim()) return choice.text.trim();
+            }
+            if (value.result !== undefined && value.result !== value) return extractText(value.result);
+            if (value.message && typeof value.message.content === "string") return value.message.content.trim();
+          }
+          return "";
+        }
+        const reply = extractText(result);
+        if (!reply) {
+          const shape = result && typeof result === "object" ? Object.keys(result).join(", ") : typeof result;
+          return json({ error: `The AI model returned no text. Returned data fields: ${shape || "none"}. Please retry once; if it repeats, send this exact message to troubleshoot.` }, 502, request);
+        }
+        return json({ reply }, 200, request);
       }
       if (url.pathname === "/api/image") {
         if (!env.AI) return json({ error: "Cloudflare Workers AI binding named AI is missing." }, 500, request);
