@@ -1,6 +1,7 @@
 // ============================================================
 // VYRO AI — Complete Cloudflare Worker
-// Firebase Authentication + Workers AI Chat + Image Generation
+// Firebase email/password authentication + GLM-4.7-Flash chat
+// + existing FLUX.1 Schnell image generation
 // ============================================================
 
 const FIREBASE_CONFIG = {
@@ -13,1114 +14,130 @@ const FIREBASE_CONFIG = {
   measurementId: "G-3B1YWMDHTF"
 };
 
+const CHAT_MODEL = "@cf/zai-org/glm-4.7-flash";
+const IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
+
 const HTML = String.raw`<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#09090c">
-<title>VYRO AI</title>
-
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#09090c"><title>VYRO AI</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
-:root {
-  color-scheme: dark;
-  --bg:#09090c;
-  --panel:#101014;
-  --panel2:#15151b;
-  --border:#292932;
-  --text:#f1f0f7;
-  --muted:#9896a7;
-  --accent:#7565c9;
-  --accentHover:#8575da;
-  --danger:#d85d68;
-}
-*{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-body{background:var(--bg);color:var(--text);font-size:14px}
-button,input,textarea{font:inherit}
-button{cursor:pointer}
-button:disabled{opacity:.55;cursor:not-allowed}
-button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-button,.button,input,textarea,.card,.panel,.message,.history-item,.logo{border-radius:0!important}
-.app{height:100dvh;display:flex;overflow:hidden}
-.sidebar{width:245px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);padding:15px;display:flex;flex-direction:column;gap:10px}
-.brand{display:flex;align-items:center;gap:11px;font-size:19px;font-weight:750;letter-spacing:1px;padding:3px 0 17px}
-.logo{height:38px;width:38px;display:grid;place-items:center;background:#171521;border:1px solid #4a416f}
-.logo svg{width:26px;height:26px}
-.button{display:flex;align-items:center;justify-content:flex-start;gap:9px;width:100%;padding:11px 12px;color:var(--text);background:transparent;border:1px solid var(--border);text-align:left}
-.button:hover{background:var(--panel2)}
-.button.primary{background:var(--accent);border-color:var(--accent);color:white}
-.button.primary:hover{background:var(--accentHover)}
-.section-label{font-size:10px;color:var(--muted);letter-spacing:1.5px;margin:13px 0 3px}
-.nav{display:flex;flex-direction:column;gap:6px}
-.history{display:flex;flex-direction:column;gap:5px;overflow:auto}
-.history-item{border:1px solid transparent;background:transparent;color:var(--muted);padding:9px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.history-item:hover,.history-item.active{background:var(--panel2);border-color:var(--border);color:var(--text)}
-.sidebar-bottom{margin-top:auto;display:flex;flex-direction:column;gap:7px}
-.profile{font-size:11px;color:var(--muted);overflow-wrap:anywhere;padding:8px 0}
-.main{flex:1;min-width:0;display:flex;flex-direction:column}
-.topbar{height:58px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid var(--border)}
-.top-title{font-weight:650;letter-spacing:.4px}
-.top-status{font-size:11px;color:var(--muted)}
-.content{flex:1;overflow:auto;padding:20px}
-.workspace{max-width:1000px;width:100%;margin:0 auto}
-.welcome{padding:35px 0 25px}
-.welcome h1{font-size:clamp(27px,5vw,40px);margin:0 0 10px;letter-spacing:-1.5px}
-.welcome p{color:var(--muted);margin:0;line-height:1.7}
-.quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:22px 0}
-.quick{border:1px solid var(--border);background:var(--panel);padding:14px;text-align:left;color:var(--text)}
-.quick:hover{border-color:#62569a;background:var(--panel2)}
-.quick strong{display:block;margin-bottom:5px}
-.quick span{font-size:12px;color:var(--muted)}
-.messages{display:flex;flex-direction:column;gap:12px;padding-bottom:16px}
-.message{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;padding:14px 15px;border:1px solid var(--border)}
-.message.user{background:#17151f;border-color:#383047}
-.message.assistant{background:var(--panel)}
-.message-label{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:7px}
-.composer{display:flex;gap:8px;align-items:stretch;position:sticky;bottom:0;background:var(--bg);padding:10px 0 2px}
-textarea,input{width:100%;background:#101014;border:1px solid var(--border);color:var(--text);padding:12px;outline:none}
-textarea{resize:vertical;min-height:48px;max-height:220px}
-.send{min-width:76px;padding:10px 14px;border:1px solid var(--accent);background:var(--accent);color:white}
-.send:hover{background:var(--accentHover)}
-.panel{border:1px solid var(--border);background:var(--panel);padding:18px;margin-bottom:15px}
-.panel h2,.panel h3{margin:0 0 8px}
-.muted{color:var(--muted);font-size:12px;line-height:1.7}
-.field-label{display:block;margin:14px 0 6px;font-size:12px;color:#c7c4d3}
-#imagePrompt{min-height:120px}
-.image-result{margin-top:15px}
-.image-result img{display:block;width:100%;height:auto;border:1px solid var(--border);margin-top:10px}
-.image-actions{display:flex;gap:8px;margin-top:10px}
-.image-actions a{color:white;text-decoration:none}
-.status{font-size:12px;color:var(--muted);margin-top:10px;overflow-wrap:anywhere}
-.status.error{color:#ff929b}
-.status.success{color:#91d8b3}
-.overlay{position:fixed;z-index:20;inset:0;background:#07070bed;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto}
-.card{width:420px;max-width:100%;border:1px solid #35313f;background:#101014;padding:24px}
-.auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:25px;font-size:17px;font-weight:750;letter-spacing:1px}
-.card h1{font-size:26px;margin:0 0 7px}
-.card p{color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 20px}
-.card input{margin-bottom:9px}
-.card .button{justify-content:center;text-align:center;margin-top:9px}
-.auth-submit{width:100%;padding:12px;background:var(--accent);color:white;border:1px solid var(--accent);margin-top:5px}
-.auth-submit:hover{background:var(--accentHover)}
-.auth-note{font-size:12px;line-height:1.6;margin-top:14px;color:var(--muted);overflow-wrap:anywhere}
-.hidden{display:none!important}
-.mobile-menu{display:none}
-@media(max-width:760px){
-  .sidebar{display:none}
-  .content{padding:14px}
-  .topbar{padding:0 14px}
-  .mobile-menu{display:inline-flex}
-  .welcome{padding-top:22px}
-  .quick-grid{grid-template-columns:1fr 1fr}
-}
-@media(max-width:380px){
-  .quick-grid{grid-template-columns:1fr}
-  .composer{gap:5px}
-  .send{min-width:62px;padding:8px}
-}
-</style>
-</head>
-<body>
-
-<div class="app">
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="logo" aria-hidden="true">
-        <svg viewBox="0 0 32 32" fill="none">
-          <path d="M7 7H25L7 25H25" stroke="#c4b7ff" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter"/>
-          <path d="M17 7L7 17" stroke="#8170dc" stroke-width="3"/>
-        </svg>
-      </div>
-      VYRO
-    </div>
-    <button class="button primary" id="newChat">＋ New chat</button>
-    <div class="section-label">WORKSPACE</div>
-    <div class="nav">
-      <button class="button" id="chatTab">▤ &nbsp; Chat</button>
-      <button class="button" id="studioTab">▧ &nbsp; Image Studio</button>
-    </div>
-    <div class="section-label">RECENT CHATS</div>
-    <div class="history" id="history"></div>
-    <div class="sidebar-bottom">
-      <div class="profile" id="profile">Not signed in</div>
-      <button class="button" id="clearHistory">Clear chat history</button>
-      <button class="button" id="logout">Sign out</button>
-    </div>
-  </aside>
-
-  <main class="main">
-    <header class="topbar">
-      <div class="top-title">VYRO <span style="color:var(--muted);font-weight:400">/ AI</span></div>
-      <div class="top-status" id="topStatus">Ready</div>
-    </header>
-
-    <div class="content">
-      <div class="workspace">
-        <section id="chatView">
-          <div class="welcome" id="welcome">
-            <h1>What can I help with?</h1>
-            <p>Welcome to VYRO. Ask questions, explore ideas, write, learn, and create.</p>
-            <div class="quick-grid">
-              <button class="quick" data-prompt="Explain a difficult topic in simple words."><strong>Learn</strong><span>Understand something new</span></button>
-              <button class="quick" data-prompt="Help me brainstorm some creative ideas."><strong>Brainstorm</strong><span>Explore new possibilities</span></button>
-              <button class="quick" data-prompt="Help me write and improve a piece of writing."><strong>Write</strong><span>Draft, edit, and improve</span></button>
-              <button class="quick" data-prompt="Help me make a clear step-by-step plan."><strong>Plan</strong><span>Organize your next steps</span></button>
-            </div>
-          </div>
-          <div class="messages" id="messages"></div>
-          <div class="composer">
-            <textarea id="prompt" rows="1" maxlength="10000" placeholder="Message VYRO..."></textarea>
-            <button class="send" id="send">Send</button>
-          </div>
-          <div class="muted" style="text-align:center;margin-top:8px">VYRO can make mistakes. Check important information.</div>
-        </section>
-
-        <section id="studioView" class="hidden">
-          <div class="welcome">
-            <h1>Image Studio</h1>
-            <p>Turn a text prompt into an image.</p>
-          </div>
-          <div class="panel">
-            <h3>Describe your image</h3>
-            <p class="muted">Be specific about the subject, setting, lighting, and art style.</p>
-            <label class="field-label" for="imagePrompt">IMAGE PROMPT</label>
-            <textarea id="imagePrompt" maxlength="1500" placeholder="A cinematic futuristic city at night, detailed architecture, dramatic clouds, purple and black atmosphere..."></textarea>
-            <div style="display:flex;gap:8px;margin-top:12px">
-              <button class="button primary" id="generate">Generate image</button>
-              <button class="button" id="regen">Regenerate</button>
-            </div>
-            <div class="status" id="imageStatus" aria-live="polite"></div>
-            <div class="image-result" id="imageResult"></div>
-          </div>
-        </section>
-      </div>
-    </div>
-  </main>
-</div>
-
-<div class="overlay" id="loginOverlay">
-  <div class="card">
-    <div class="auth-brand">
-      <div class="logo" aria-hidden="true">
-        <svg viewBox="0 0 32 32" fill="none">
-          <path d="M7 7H25L7 25H25" stroke="#c4b7ff" stroke-width="3" stroke-linecap="square"/>
-        </svg>
-      </div>
-      VYRO AI
-    </div>
-    <h1 id="authTitle">Sign in</h1>
-    <p id="authSubtitle">Sign in to continue to your VYRO workspace.</p>
-    <form id="authForm">
-      <input id="email" type="email" autocomplete="email" placeholder="Email address" required>
-      <input id="password" type="password" autocomplete="current-password" minlength="6" placeholder="Password (at least 6 characters)" required>
-      <button class="auth-submit" id="authSubmit" type="submit">Sign in</button>
-    </form>
-    <button class="button" id="authSwitch" type="button">Create an account</button>
-    <button class="button" id="resendVerification" type="button">Resend verification email</button>
-    <div class="auth-note" id="authStatus" aria-live="polite"></div>
-  </div>
-</div>
-
+:root{color-scheme:dark;--bg:#09090c;--panel:#101014;--panel2:#15151b;--border:#292932;--text:#f1f0f7;--muted:#9896a7;--accent:#7565c9;--hover:#8575da}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}body{background:var(--bg);color:var(--text);font-size:14px}button,input,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button,.button,input,textarea,.card,.panel,.message,.history-item,.logo{border-radius:0!important}.app{height:100dvh;display:flex;overflow:hidden}.sidebar{width:245px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);padding:15px;display:flex;flex-direction:column;gap:10px}.brand{display:flex;align-items:center;gap:11px;font-size:19px;font-weight:750;letter-spacing:1px;padding:3px 0 17px}.logo{height:38px;width:38px;display:grid;place-items:center;background:#171521;border:1px solid #4a416f}.logo svg{width:26px;height:26px}.button{display:flex;align-items:center;justify-content:flex-start;gap:9px;width:100%;padding:11px 12px;color:var(--text);background:transparent;border:1px solid var(--border);text-align:left}.button:hover{background:var(--panel2)}.primary{background:var(--accent)!important;border-color:var(--accent)!important;color:white!important}.primary:hover{background:var(--hover)!important}.section-label{font-size:10px;color:var(--muted);letter-spacing:1.5px;margin:13px 0 3px}.nav,.history,.sidebar-bottom{display:flex;flex-direction:column;gap:6px}.history{overflow:auto}.history-item{border:1px solid transparent;background:transparent;color:var(--muted);padding:9px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.history-item:hover,.history-item.active{background:var(--panel2);border-color:var(--border);color:var(--text)}.sidebar-bottom{margin-top:auto;gap:7px}.profile{font-size:11px;color:var(--muted);overflow-wrap:anywhere;padding:8px 0}.main{flex:1;min-width:0;display:flex;flex-direction:column}.topbar{height:58px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid var(--border)}.top-status,.muted{font-size:12px;color:var(--muted);line-height:1.7}.content{flex:1;overflow:auto;padding:20px}.workspace{max-width:1000px;width:100%;margin:0 auto}.welcome{padding:35px 0 25px}.welcome h1{font-size:clamp(27px,5vw,40px);margin:0 0 10px;letter-spacing:-1.5px}.welcome p{color:var(--muted);margin:0;line-height:1.7}.quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:22px 0}.quick{border:1px solid var(--border);background:var(--panel);padding:14px;text-align:left;color:var(--text)}.quick:hover{border-color:#62569a;background:var(--panel2)}.quick strong{display:block;margin-bottom:5px}.quick span{font-size:12px;color:var(--muted)}.messages{display:flex;flex-direction:column;gap:12px;padding-bottom:16px}.message{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;padding:14px 15px;border:1px solid var(--border)}.message.user{background:#17151f;border-color:#383047}.message.assistant{background:var(--panel)}.message-label{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:7px}.composer{display:flex;gap:8px;align-items:stretch;position:sticky;bottom:0;background:var(--bg);padding:10px 0 2px}textarea,input{width:100%;background:#101014;border:1px solid var(--border);color:var(--text);padding:12px;outline:none}textarea{resize:vertical;min-height:48px;max-height:220px}.send{min-width:76px;padding:10px 14px;border:1px solid var(--accent);background:var(--accent);color:white}.panel{border:1px solid var(--border);background:var(--panel);padding:18px;margin-bottom:15px}.panel h3{margin:0 0 8px}.field-label{display:block;margin:14px 0 6px;font-size:12px;color:#c7c4d3}#imagePrompt{min-height:120px}.image-result{margin-top:15px}.image-result img{display:block;width:100%;height:auto;border:1px solid var(--border);margin-top:10px}.image-actions{display:flex;gap:8px;margin-top:10px}.image-actions a{color:white;text-decoration:none}.status{font-size:12px;color:var(--muted);margin-top:10px;overflow-wrap:anywhere}.error{color:#ff929b!important}.success{color:#91d8b3!important}.overlay{position:fixed;z-index:20;inset:0;background:#07070bed;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto}.card{width:420px;max-width:100%;border:1px solid #35313f;background:#101014;padding:24px}.auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:25px;font-size:17px;font-weight:750;letter-spacing:1px}.card h1{font-size:26px;margin:0 0 7px}.card p{color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 20px}.card input{margin-bottom:9px}.card .button{justify-content:center;text-align:center;margin-top:9px}.auth-submit{width:100%;padding:12px;background:var(--accent);color:white;border:1px solid var(--accent);margin-top:5px}.auth-note{font-size:12px;line-height:1.6;margin-top:14px;color:var(--muted);overflow-wrap:anywhere}.hidden{display:none!important}@media(max-width:760px){.sidebar{display:none}.content{padding:14px}.topbar{padding:0 14px}.welcome{padding-top:22px}}@media(max-width:380px){.quick-grid{grid-template-columns:1fr}.composer{gap:5px}.send{min-width:62px;padding:8px}}
+</style></head><body>
+<div class="app"><aside class="sidebar"><div class="brand"><div class="logo"><svg viewBox="0 0 32 32" fill="none"><path d="M7 7H25L7 25H25" stroke="#c4b7ff" stroke-width="3" stroke-linecap="square"/><path d="M17 7L7 17" stroke="#8170dc" stroke-width="3"/></svg></div>VYRO</div><button class="button primary" id="newChat">＋ New chat</button><div class="section-label">WORKSPACE</div><div class="nav"><button class="button" id="chatTab">▤ &nbsp; Chat</button><button class="button" id="studioTab">▧ &nbsp; Image Studio</button></div><div class="section-label">RECENT CHATS</div><div class="history" id="history"></div><div class="sidebar-bottom"><div class="profile" id="profile">Not signed in</div><button class="button" id="clearHistory">Clear chat history</button><button class="button" id="logout">Sign out</button></div></aside>
+<main class="main"><header class="topbar"><div><b>VYRO</b> <span style="color:var(--muted)">/ AI</span></div><div class="top-status" id="topStatus">Ready</div></header><div class="content"><div class="workspace"><section id="chatView"><div class="welcome" id="welcome"><h1>What can I help with?</h1><p>Welcome to VYRO. Ask questions, explore ideas, write, learn, and create.</p><div class="quick-grid"><button class="quick" data-prompt="Explain a difficult topic in simple words."><strong>Learn</strong><span>Understand something new</span></button><button class="quick" data-prompt="Help me brainstorm some creative ideas."><strong>Brainstorm</strong><span>Explore new possibilities</span></button><button class="quick" data-prompt="Help me write and improve a piece of writing."><strong>Write</strong><span>Draft, edit, and improve</span></button><button class="quick" data-prompt="Help me make a clear step-by-step plan."><strong>Plan</strong><span>Organize your next steps</span></button></div></div><div class="messages" id="messages"></div><div class="composer"><textarea id="prompt" rows="1" maxlength="10000" placeholder="Message VYRO..."></textarea><button class="send" id="send">Send</button></div><div class="muted" style="text-align:center;margin-top:8px">VYRO can make mistakes. Check important information.</div></section>
+<section id="studioView" class="hidden"><div class="welcome"><h1>Image Studio</h1><p>Turn a text prompt into an image.</p></div><div class="panel"><h3>Describe your image</h3><p class="muted">Describe the subject, setting, lighting, and art style.</p><label class="field-label" for="imagePrompt">IMAGE PROMPT</label><textarea id="imagePrompt" maxlength="1500" placeholder="A cinematic futuristic city at night, detailed architecture, dramatic clouds, purple and black atmosphere..."></textarea><div style="display:flex;gap:8px;margin-top:12px"><button class="button primary" id="generate">Generate image</button><button class="button" id="regen">Regenerate</button></div><div class="status" id="imageStatus" aria-live="polite"></div><div class="image-result" id="imageResult"></div></div></section></div></div></main></div>
+<div class="overlay" id="loginOverlay"><div class="card"><div class="auth-brand"><div class="logo"><svg viewBox="0 0 32 32" fill="none"><path d="M7 7H25L7 25H25" stroke="#c4b7ff" stroke-width="3" stroke-linecap="square"/></svg></div>VYRO AI</div><h1 id="authTitle">Sign in</h1><p id="authSubtitle">Sign in to continue to your VYRO workspace.</p><form id="authForm"><input id="email" type="email" autocomplete="email" placeholder="Email address" required><input id="password" type="password" autocomplete="current-password" minlength="6" placeholder="Password (at least 6 characters)" required><button class="auth-submit" id="authSubmit" type="submit">Sign in</button></form><button class="button" id="authSwitch" type="button">Create an account</button><button class="button" id="resendVerification" type="button">Resend verification email</button><div class="auth-note" id="authStatus" aria-live="polite"></div></div></div>
 <script>
-(function(){
-  'use strict';
-
-  const $ = id => document.getElementById(id);
-  let auth = null;
-  let currentUser = null;
-  let authMode = 'signin';
-  let busy = false;
-  let chats = [];
-  let chatId = null;
-  let lastImagePrompt = '';
-  const HISTORY_KEY = 'vyro_chat_history_v1';
-
-  function status(el, message, type) {
-    el.textContent = message || '';
-    el.className = 'status' + (type ? ' ' + type : '');
-  }
-
-  function authMessage(message, type) {
-    $('authStatus').textContent = message || '';
-    $('authStatus').style.color =
-      type === 'error' ? '#ff929b' :
-      type === 'success' ? '#91d8b3' : 'var(--muted)';
-  }
-
-  function setAuthMode(mode) {
-    authMode = mode;
-    const signup = mode === 'signup';
-    $('authTitle').textContent = signup ? 'Create your account' : 'Sign in';
-    $('authSubtitle').textContent = signup
-      ? 'Create a VYRO account using your email address.'
-      : 'Sign in to continue to your VYRO workspace.';
-    $('authSubmit').textContent = signup ? 'Create account' : 'Sign in';
-    $('authSwitch').textContent = signup
-      ? 'Already have an account? Sign in'
-      : 'Create an account';
-    $('password').autocomplete = signup ? 'new-password' : 'current-password';
-    authMessage('');
-  }
-
-  function showLogin(show) {
-    $('loginOverlay').classList.toggle('hidden', !show);
-  }
-
-  function updateProfile() {
-    $('profile').textContent = currentUser
-      ? currentUser.email + (currentUser.emailVerified ? ' · Verified' : ' · Unverified')
-      : 'Not signed in';
-    $('topStatus').textContent = currentUser ? 'Signed in' : 'Ready';
-  }
-
-  function loadHistory() {
-    try {
-      chats = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-      if (!Array.isArray(chats)) chats = [];
-    } catch (e) {
-      chats = [];
-    }
-    renderHistory();
-    if (!chatId || !chats.some(c => c.id === chatId)) {
-      chatId = chats.length ? chats[chats.length - 1].id : null;
-    }
-    renderMessages();
-  }
-
-  function saveHistory() {
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(chats));
-    } catch (e) {
-      console.warn('History save failed', e);
-    }
-    renderHistory();
-  }
-
-  function renderHistory() {
-    const el = $('history');
-    el.replaceChildren();
-    chats.slice().reverse().forEach(c => {
-      const b = document.createElement('button');
-      b.className = 'history-item' + (c.id === chatId ? ' active' : '');
-      b.textContent = c.title || 'New chat';
-      b.onclick = () => {
-        chatId = c.id;
-        renderHistory();
-        renderMessages();
-        showChat();
-      };
-      el.appendChild(b);
-    });
-  }
-
-  function currentChat() {
-    return chats.find(c => c.id === chatId) || null;
-  }
-
-  function newChat() {
-    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    chatId = id;
-    chats.push({ id, title: 'New chat', messages: [] });
-    saveHistory();
-    renderMessages();
-    showChat();
-    $('prompt').focus();
-  }
-
-  function renderMessages() {
-    const el = $('messages');
-    el.replaceChildren();
-    const c = currentChat();
-    $('welcome').classList.toggle('hidden', !!(c && c.messages.length));
-    if (!c) return;
-    c.messages.forEach(m => {
-      const box = document.createElement('div');
-      box.className = 'message ' + (m.role === 'user' ? 'user' : 'assistant');
-      const label = document.createElement('div');
-      label.className = 'message-label';
-      label.textContent = m.role === 'user' ? 'YOU' : 'VYRO';
-      const body = document.createElement('div');
-      body.textContent = m.content;
-      box.append(label, body);
-      el.appendChild(box);
-    });
-    el.scrollTop = el.scrollHeight;
-  }
-
-  function addMessage(role, content) {
-    let c = currentChat();
-    if (!c) {
-      newChat();
-      c = currentChat();
-    }
-    c.messages.push({ role, content });
-    if (role === 'user' && c.title === 'New chat') {
-      c.title = content.slice(0, 36);
-    }
-    saveHistory();
-    renderMessages();
-  }
-
-  async function getToken() {
-    if (!currentUser) throw new Error('Please sign in first.');
-    return await currentUser.getIdToken();
-  }
-
-  async function sendMessage() {
-    if (busy) return;
-    if (!currentUser) {
-      showLogin(true);
-      return;
-    }
-
-    const message = $('prompt').value.trim();
-    if (!message) return;
-
-    $('prompt').value = '';
-    if (!currentChat()) newChat();
-    addMessage('user', message);
-    busy = true;
-    $('send').disabled = true;
-    $('topStatus').textContent = 'Thinking…';
-
-    const wait = document.createElement('div');
-    wait.className = 'message assistant';
-    wait.textContent = 'VYRO is thinking…';
-    $('messages').appendChild(wait);
-
-    try {
-      const token = await getToken();
-      const c = currentChat();
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify({
-          messages: c.messages.slice(-20)
-        })
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || data.details || 'Chat request failed.');
-      }
-
-      wait.remove();
-      addMessage('assistant', data.response || 'No response was returned.');
-    } catch (e) {
-      wait.remove();
-      addMessage('assistant', 'Sorry, I could not complete that request. ' + (e.message || 'Please try again.'));
-      console.error('VYRO chat error:', e);
-    } finally {
-      busy = false;
-      $('send').disabled = false;
-      $('topStatus').textContent = 'Ready';
-    }
-  }
-
-  function base64ToBlob(value) {
-    const match = value.match(/^data:(image\\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
-    const mime = match ? match[1] : 'image/png';
-    const raw = (match ? match[2] : value).replace(/\\s/g, '');
-    try {
-      const binary = atob(raw);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return new Blob([bytes], { type: mime });
-    } catch (e) {
-      return null;
-    }
-  }
-
-  async function generateImage() {
-    if (!currentUser) {
-      showLogin(true);
-      return;
-    }
-
-    const prompt = $('imagePrompt').value.trim() || lastImagePrompt;
-    if (!prompt) {
-      status($('imageStatus'), 'Enter an image prompt first.', 'error');
-      return;
-    }
-
-    lastImagePrompt = prompt;
-    $('imagePrompt').value = prompt;
-    $('generate').disabled = true;
-    $('regen').disabled = true;
-    status($('imageStatus'), 'Generating image. This may take a little while…');
-    $('imageResult').replaceChildren();
-
-    try {
-      const token = await getToken();
-      const response = await fetch('/api/image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify({ prompt })
-      });
-
-      const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
-      if (!response.ok) {
-        const data = await response.json().catch(async () => ({
-          details: await response.text().catch(() => '')
-        }));
-        throw new Error(data.error || data.details || 'Image generation failed.');
-      }
-
-      let blob;
-      if (contentType.startsWith('image/')) {
-        blob = await response.blob();
-      } else {
-        const data = await response.json();
-        const value = data.image || data.data || data.output;
-        if (typeof value !== 'string') {
-          throw new Error('The image model returned no image data.');
-        }
-        blob = base64ToBlob(value);
-      }
-
-      if (!blob || !blob.size) throw new Error('The returned image was empty.');
-
-      const imageUrl = URL.createObjectURL(blob);
-      const img = document.createElement('img');
-      img.src = imageUrl;
-      img.alt = prompt;
-
-      const actions = document.createElement('div');
-      actions.className = 'image-actions';
-
-      const download = document.createElement('a');
-      download.className = 'button primary';
-      download.href = imageUrl;
-      download.download = 'vyro-image.png';
-      download.textContent = 'Download image';
-
-      actions.appendChild(download);
-      $('imageResult').append(img, actions);
-      status($('imageStatus'), 'Your image is ready.', 'success');
-    } catch (e) {
-      status($('imageStatus'), 'Generation failed: ' + (e.message || 'Unknown error'), 'error');
-      console.error('VYRO image error:', e);
-    } finally {
-      $('generate').disabled = false;
-      $('regen').disabled = false;
-    }
-  }
-
-  async function submitAuth(event) {
-    event.preventDefault();
-    if (!auth) {
-      authMessage('Authentication is still loading. Please try again.', 'error');
-      return;
-    }
-
-    const email = $('email').value.trim();
-    const password = $('password').value;
-    const signup = authMode === 'signup';
-
-    if (signup && password.length < 6) {
-      authMessage('Your password must contain at least 6 characters.', 'error');
-      return;
-    }
-
-    $('authSubmit').disabled = true;
-    $('authSwitch').disabled = true;
-    $('resendVerification').disabled = true;
-    authMessage(signup ? 'Creating your account…' : 'Signing in…');
-
-    try {
-      if (signup) {
-        const credential = await auth.createUserWithEmailAndPassword(email, password);
-        await credential.user.sendEmailVerification({
-          url: location.origin,
-          handleCodeInApp: false
-        });
-
-        await auth.signOut();
-        $('password').value = '';
-        setAuthMode('signin');
-        authMessage(
-          'Account created! A verification email has been sent. Open that email, verify your address, then return here and sign in.',
-          'success'
-        );
-      } else {
-        const credential = await auth.signInWithEmailAndPassword(email, password);
-        await credential.user.reload();
-
-        if (!credential.user.emailVerified) {
-          await auth.signOut();
-          authMessage('Your email is not verified yet. Open the verification email or tap “Resend verification email”.', 'error');
-        } else {
-          currentUser = credential.user;
-          showLogin(false);
-          updateProfile();
-          loadHistory();
-          authMessage('');
-        }
-      }
-    } catch (e) {
-      const messages = {
-        'auth/email-already-in-use': 'An account with this email already exists. Try signing in.',
-        'auth/invalid-email': 'Enter a valid email address.',
-        'auth/weak-password': 'Choose a stronger password with at least 6 characters.',
-        'auth/user-not-found': 'No account was found for this email.',
-        'auth/wrong-password': 'Incorrect email or password.',
-        'auth/invalid-credential': 'Incorrect email or password.',
-        'auth/too-many-requests': 'Too many attempts. Wait a little and try again.',
-        'auth/network-request-failed': 'Network error. Check your internet connection.',
-        'auth/operation-not-allowed': 'Email/password sign-in is not enabled in Firebase Authentication.'
-      };
-      authMessage(messages[e.code] || e.message || 'Authentication failed.', 'error');
-      console.error('VYRO auth error:', e);
-    } finally {
-      $('authSubmit').disabled = false;
-      $('authSwitch').disabled = false;
-      $('resendVerification').disabled = false;
-    }
-  }
-
-  async function resendVerification() {
-    if (!auth) {
-      authMessage('Authentication is still loading.', 'error');
-      return;
-    }
-
-    const email = $('email').value.trim();
-    const password = $('password').value;
-
-    if (!email || !password) {
-      authMessage('Enter your email and password first, then tap resend.', 'error');
-      return;
-    }
-
-    $('resendVerification').disabled = true;
-    authMessage('Checking your account…');
-
-    try {
-      const credential = await auth.signInWithEmailAndPassword(email, password);
-      await credential.user.reload();
-
-      if (credential.user.emailVerified) {
-        currentUser = credential.user;
-        showLogin(false);
-        updateProfile();
-        loadHistory();
-        authMessage('Your email is already verified.', 'success');
-        return;
-      }
-
-      await credential.user.sendEmailVerification({
-        url: location.origin,
-        handleCodeInApp: false
-      });
-
-      await auth.signOut();
-      authMessage('Verification email sent. Check your inbox and spam folder.', 'success');
-    } catch (e) {
-      authMessage(e.message || 'Could not resend the verification email.', 'error');
-    } finally {
-      $('resendVerification').disabled = false;
-    }
-  }
-
-  function showChat() {
-    $('chatView').classList.remove('hidden');
-    $('studioView').classList.add('hidden');
-  }
-
-  function showStudio() {
-    $('studioView').classList.remove('hidden');
-    $('chatView').classList.add('hidden');
-  }
-
-  $('authForm').addEventListener('submit', submitAuth);
-  $('authSwitch').onclick = () => setAuthMode(authMode === 'signup' ? 'signin' : 'signup');
-  $('resendVerification').onclick = resendVerification;
-
-  $('send').onclick = sendMessage;
-  $('prompt').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  $('newChat').onclick = newChat;
-  $('chatTab').onclick = showChat;
-  $('studioTab').onclick = showStudio;
-  $('generate').onclick = generateImage;
-  $('regen').onclick = generateImage;
-
-  document.querySelectorAll('[data-prompt]').forEach(button => {
-    button.onclick = () => {
-      $('prompt').value = button.getAttribute('data-prompt') || '';
-      $('prompt').focus();
-    };
-  });
-
-  $('clearHistory').onclick = () => {
-    if (!confirm('Clear all saved chat history on this device?')) return;
-    chats = [];
-    chatId = null;
-    try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
-    renderHistory();
-    renderMessages();
-  };
-
-  $('logout').onclick = async () => {
-    if (auth) await auth.signOut().catch(() => {});
-    currentUser = null;
-    updateProfile();
-    showLogin(true);
-    setAuthMode('signin');
-  };
-
-  async function init() {
-    try {
-      if (!window.firebase) throw new Error('Firebase SDK did not load. Refresh the page.');
-      if (!firebase.apps.length) firebase.initializeApp(__FIREBASE_CONFIG__);
-      auth = firebase.auth();
-      auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(console.warn);
-
-      auth.onAuthStateChanged(async user => {
-        if (!user) {
-          currentUser = null;
-          updateProfile();
-          showLogin(true);
-          return;
-        }
-
-        try {
-          await user.reload();
-          const refreshedUser = auth.currentUser;
-
-          if (!refreshedUser || !refreshedUser.emailVerified) {
-            currentUser = null;
-            await auth.signOut();
-            showLogin(true);
-            updateProfile();
-            authMessage('Please verify your email before signing in.', 'error');
-            return;
-          }
-
-          currentUser = refreshedUser;
-          showLogin(false);
-          updateProfile();
-          loadHistory();
-        } catch (e) {
-          console.error('Session check failed:', e);
-          currentUser = null;
-          showLogin(true);
-        }
-      });
-    } catch (e) {
-      console.error('VYRO initialization error:', e);
-      showLogin(true);
-      authMessage(e.message || 'Could not initialize Firebase.', 'error');
-    }
-  }
-
-  setAuthMode('signin');
-  init();
+(function(){'use strict';const $=id=>document.getElementById(id);let auth=null,currentUser=null,authMode='signin',busy=false,chats=[],chatId=null,lastImagePrompt='';const HISTORY_KEY='vyro_chat_history_v1';
+function status(el,msg,type){el.textContent=msg||'';el.className='status'+(type?' '+type:'')}function authMessage(msg,type){$('authStatus').textContent=msg||'';$('authStatus').style.color=type==='error'?'#ff929b':type==='success'?'#91d8b3':'var(--muted)'}function setAuthMode(mode){authMode=mode;const signup=mode==='signup';$('authTitle').textContent=signup?'Create your account':'Sign in';$('authSubtitle').textContent=signup?'Create a VYRO account using your email address.':'Sign in to continue to your VYRO workspace.';$('authSubmit').textContent=signup?'Create account':'Sign in';$('authSwitch').textContent=signup?'Already have an account? Sign in':'Create an account';$('password').autocomplete=signup?'new-password':'current-password';authMessage('')}function showLogin(show){$('loginOverlay').classList.toggle('hidden',!show)}function updateProfile(){$('profile').textContent=currentUser?currentUser.email+(currentUser.emailVerified?' · Verified':' · Unverified'):'Not signed in';$('topStatus').textContent=currentUser?'Signed in':'Ready'}
+function loadHistory(){try{chats=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');if(!Array.isArray(chats))chats=[]}catch(e){chats=[]}renderHistory();if(!chatId||!chats.some(c=>c.id===chatId))chatId=chats.length?chats[chats.length-1].id:null;renderMessages()}function saveHistory(){try{localStorage.setItem(HISTORY_KEY,JSON.stringify(chats))}catch(e){console.warn('History save failed',e)}renderHistory()}function renderHistory(){const el=$('history');el.replaceChildren();chats.slice().reverse().forEach(c=>{const b=document.createElement('button');b.className='history-item'+(c.id===chatId?' active':'');b.textContent=c.title||'New chat';b.onclick=()=>{chatId=c.id;renderHistory();renderMessages();showChat()};el.appendChild(b)})}function currentChat(){return chats.find(c=>c.id===chatId)||null}function newChat(){const id=Date.now().toString(36)+Math.random().toString(36).slice(2,8);chatId=id;chats.push({id,title:'New chat',messages:[]});saveHistory();renderMessages();showChat();$('prompt').focus()}function renderMessages(){const el=$('messages');el.replaceChildren();const c=currentChat();$('welcome').classList.toggle('hidden',!!(c&&c.messages.length));if(!c)return;c.messages.forEach(m=>{const box=document.createElement('div');box.className='message '+(m.role==='user'?'user':'assistant');const label=document.createElement('div');label.className='message-label';label.textContent=m.role==='user'?'YOU':'VYRO';const body=document.createElement('div');body.textContent=m.content;box.append(label,body);el.appendChild(box)});el.scrollTop=el.scrollHeight}function addMessage(role,content){let c=currentChat();if(!c){newChat();c=currentChat()}c.messages.push({role,content});if(role==='user'&&c.title==='New chat')c.title=content.slice(0,36);saveHistory();renderMessages()}async function getToken(){if(!currentUser)throw new Error('Please sign in first.');return currentUser.getIdToken()}
+async function sendMessage(){if(busy)return;if(!currentUser){showLogin(true);return}const message=$('prompt').value.trim();if(!message)return;$('prompt').value='';if(!currentChat())newChat();addMessage('user',message);busy=true;$('send').disabled=true;$('topStatus').textContent='Thinking…';const wait=document.createElement('div');wait.className='message assistant';wait.textContent='Y10 is thinking…';$('messages').appendChild(wait);try{const token=await getToken(),c=currentChat();const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({messages:c.messages.slice(-20)})});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||data.details||'Chat request failed.');wait.remove();addMessage('assistant',data.response||'No response was returned.')}catch(e){wait.remove();addMessage('assistant','Sorry, I could not complete that request. '+(e.message||'Please try again.'));console.error('VYRO chat error:',e)}finally{busy=false;$('send').disabled=false;$('topStatus').textContent='Ready'}}
+function base64ToBlob(value){const match=value.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s),mime=match?match[1]:'image/png',raw=(match?match[2]:value).replace(/\s/g,'');try{const binary=atob(raw),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return new Blob([bytes],{type:mime})}catch(e){return null}}
+async function generateImage(){if(!currentUser){showLogin(true);return}const prompt=$('imagePrompt').value.trim()||lastImagePrompt;if(!prompt){status($('imageStatus'),'Enter an image prompt first.','error');return}lastImagePrompt=prompt;$('imagePrompt').value=prompt;$('generate').disabled=true;$('regen').disabled=true;status($('imageStatus'),'Generating image. This may take a little while…');$('imageResult').replaceChildren();try{const token=await getToken(),response=await fetch('/api/image',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({prompt})}),contentType=(response.headers.get('Content-Type')||'').toLowerCase();if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||data.details||'Image generation failed.')}let blob;if(contentType.startsWith('image/'))blob=await response.blob();else{const data=await response.json(),value=data.image||data.data||data.output;if(typeof value!=='string')throw new Error('The image model returned no image data.');blob=base64ToBlob(value)}if(!blob||!blob.size)throw new Error('The returned image was empty.');const imageUrl=URL.createObjectURL(blob),img=document.createElement('img');img.src=imageUrl;img.alt=prompt;const actions=document.createElement('div');actions.className='image-actions';const download=document.createElement('a');download.className='button primary';download.href=imageUrl;download.download='vyro-image.png';download.textContent='Download image';actions.appendChild(download);$('imageResult').append(img,actions);status($('imageStatus'),'Your image is ready.','success')}catch(e){status($('imageStatus'),'Generation failed: '+(e.message||'Unknown error'),'error');console.error('VYRO image error:',e)}finally{$('generate').disabled=false;$('regen').disabled=false}}
+async function submitAuth(event){event.preventDefault();if(!auth){authMessage('Authentication is still loading. Please try again.','error');return}const email=$('email').value.trim(),password=$('password').value,signup=authMode==='signup';if(signup&&password.length<6){authMessage('Your password must contain at least 6 characters.','error');return}$('authSubmit').disabled=true;$('authSwitch').disabled=true;$('resendVerification').disabled=true;authMessage(signup?'Creating your account…':'Signing in…');try{if(signup){const credential=await auth.createUserWithEmailAndPassword(email,password);await credential.user.sendEmailVerification({url:location.origin,handleCodeInApp:false});await auth.signOut();$('password').value='';setAuthMode('signin');authMessage('Account created! A verification email has been sent. Verify your address, then return here and sign in.','success')}else{const credential=await auth.signInWithEmailAndPassword(email,password);await credential.user.reload();if(!credential.user.emailVerified){await auth.signOut();authMessage('Your email is not verified yet. Open the verification email or tap Resend verification email.','error')}else{currentUser=credential.user;showLogin(false);updateProfile();loadHistory();authMessage('')}}}catch(e){const messages={'auth/email-already-in-use':'An account with this email already exists. Try signing in.','auth/invalid-email':'Enter a valid email address.','auth/weak-password':'Choose a stronger password with at least 6 characters.','auth/user-not-found':'No account was found for this email.','auth/wrong-password':'Incorrect email or password.','auth/invalid-credential':'Incorrect email or password.','auth/too-many-requests':'Too many attempts. Wait a little and try again.','auth/network-request-failed':'Network error. Check your internet connection.','auth/operation-not-allowed':'Email/password sign-in is not enabled in Firebase Authentication.'};authMessage(messages[e.code]||e.message||'Authentication failed.','error');console.error('VYRO auth error:',e)}finally{$('authSubmit').disabled=false;$('authSwitch').disabled=false;$('resendVerification').disabled=false}}
+async function resendVerification(){if(!auth){authMessage('Authentication is still loading.','error');return}const email=$('email').value.trim(),password=$('password').value;if(!email||!password){authMessage('Enter your email and password first, then tap resend.','error');return}$('resendVerification').disabled=true;authMessage('Checking your account…');try{const credential=await auth.signInWithEmailAndPassword(email,password);await credential.user.reload();if(credential.user.emailVerified){currentUser=credential.user;showLogin(false);updateProfile();loadHistory();authMessage('Your email is already verified.','success');return}await credential.user.sendEmailVerification({url:location.origin,handleCodeInApp:false});await auth.signOut();authMessage('Verification email sent. Check your inbox and spam folder.','success')}catch(e){authMessage(e.message||'Could not resend the verification email.','error')}finally{$('resendVerification').disabled=false}}
+function showChat(){$('chatView').classList.remove('hidden');$('studioView').classList.add('hidden')}function showStudio(){$('studioView').classList.remove('hidden');$('chatView').classList.add('hidden')}
+$('authForm').addEventListener('submit',submitAuth);$('authSwitch').onclick=()=>setAuthMode(authMode==='signup'?'signin':'signup');$('resendVerification').onclick=resendVerification;$('send').onclick=sendMessage;$('prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});$('newChat').onclick=newChat;$('chatTab').onclick=showChat;$('studioTab').onclick=showStudio;$('generate').onclick=generateImage;$('regen').onclick=generateImage;document.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{$('prompt').value=b.getAttribute('data-prompt')||'';$('prompt').focus()});$('clearHistory').onclick=()=>{if(!confirm('Clear all saved chat history on this device?'))return;chats=[];chatId=null;try{localStorage.removeItem(HISTORY_KEY)}catch(e){}renderHistory();renderMessages()};$('logout').onclick=async()=>{if(auth)await auth.signOut().catch(()=>{});currentUser=null;updateProfile();showLogin(true);setAuthMode('signin')};
+async function init(){try{if(!window.firebase)throw new Error('Firebase SDK did not load. Refresh the page.');if(!firebase.apps.length)firebase.initializeApp(__FIREBASE_CONFIG__);auth=firebase.auth();auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(console.warn);auth.onAuthStateChanged(async user=>{if(!user){currentUser=null;updateProfile();showLogin(true);return}try{await user.reload();const refreshed=auth.currentUser;if(!refreshed||!refreshed.emailVerified){currentUser=null;await auth.signOut();showLogin(true);updateProfile();authMessage('Please verify your email before signing in.','error');return}currentUser=refreshed;showLogin(false);updateProfile();loadHistory()}catch(e){console.error('Session check failed:',e);currentUser=null;showLogin(true)}})}catch(e){console.error('VYRO initialization error:',e);showLogin(true);authMessage(e.message||'Could not initialize Firebase.','error')}}setAuthMode('signin');init();
 })();
-</script>
-</body>
-</html>`;
+</script></body></html>`;
 
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff"
-    }
-  });
+  return new Response(JSON.stringify(data), { status, headers: {
+    "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"
+  }});
 }
-
 function logEvent(requestId, event, details = {}) {
-  console.log(JSON.stringify({
-    service: "VYRO AI",
-    requestId,
-    event,
-    timestamp: new Date().toISOString(),
-    details
-  }));
+  console.log(JSON.stringify({ service: "VYRO AI", requestId, event, timestamp: new Date().toISOString(), details }));
 }
-
-// Verify Firebase ID token through Firebase Identity Toolkit.
 async function verifyUser(request, env) {
   const authorization = request.headers.get("Authorization") || "";
-  const idToken = authorization.startsWith("Bearer ")
-    ? authorization.slice(7).trim()
-    : "";
-
+  const idToken = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
   if (!idToken) return null;
-
   const apiKey = env.FIREBASE_API_KEY || FIREBASE_CONFIG.apiKey;
-
   try {
-    const response = await fetch(
-      "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" +
-        encodeURIComponent(apiKey),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken })
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      console.error("Firebase token verification failed:", response.status, errorText.slice(0, 300));
-      return null;
-    }
-
-    const data = await response.json();
-    const user = data && data.users && data.users[0];
-
-    if (!user || !user.localId || user.emailVerified !== true) {
-      return null;
-    }
-
-    return {
-      id: user.localId,
-      email: user.email || ""
-    };
-  } catch (error) {
-    console.error("Firebase verification error:", error instanceof Error ? error.message : String(error));
-    return null;
-  }
+    const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + encodeURIComponent(apiKey), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken })
+    });
+    if (!response.ok) { console.error("Firebase token verification failed:", response.status, (await response.text().catch(() => "")).slice(0, 300)); return null; }
+    const data = await response.json(), user = data && data.users && data.users[0];
+    if (!user || !user.localId || user.emailVerified !== true) return null;
+    return { id: user.localId, email: user.email || "" };
+  } catch (error) { console.error("Firebase verification error:", error instanceof Error ? error.message : String(error)); return null; }
 }
-
 function imageResponse(bytes, mime = "image/png") {
-  return new Response(bytes, {
-    headers: {
-      "Content-Type": mime,
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff"
-    }
-  });
+  return new Response(bytes, { headers: { "Content-Type": mime, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 }
-
 function decodeImageString(value) {
   if (typeof value !== "string") return null;
-
-  const match = value.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s);
-  const mime = match ? match[1] : "image/png";
-  const raw = (match ? match[2] : value).replace(/\s/g, "");
-
-  try {
-    const binary = atob(raw);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return { mime, bytes };
-  } catch {
-    return null;
-  }
+  const match = value.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s), mime = match ? match[1] : "image/png", raw = (match ? match[2] : value).replace(/\s/g, "");
+  try { const binary = atob(raw), bytes = new Uint8Array(binary.length); for (let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i); return { mime, bytes }; } catch { return null; }
 }
-
 function extractImage(result) {
-  if (result instanceof ArrayBuffer) {
-    return { mime: "image/png", bytes: new Uint8Array(result) };
+  if (result instanceof ArrayBuffer) return { mime: "image/png", bytes: new Uint8Array(result) };
+  if (result instanceof Uint8Array) return { mime: "image/png", bytes: result };
+  if (typeof result === "string") return decodeImageString(result);
+  if (result && typeof result === "object") for (const key of ["image","data","image_base64","output","result"]) {
+    const value=result[key]; if (value instanceof ArrayBuffer) return {mime:"image/png",bytes:new Uint8Array(value)};
+    if (value instanceof Uint8Array) return {mime:"image/png",bytes:value};
+    if (typeof value === "string") { const decoded=decodeImageString(value); if(decoded)return decoded; }
   }
-
-  if (result instanceof Uint8Array) {
-    return { mime: "image/png", bytes: result };
-  }
-
-  if (typeof result === "string") {
-    return decodeImageString(result);
-  }
-
-  if (result && typeof result === "object") {
-    for (const key of ["image", "data", "image_base64", "output", "result"]) {
-      const value = result[key];
-
-      if (value instanceof ArrayBuffer) {
-        return { mime: "image/png", bytes: new Uint8Array(value) };
-      }
-
-      if (value instanceof Uint8Array) {
-        return { mime: "image/png", bytes: value };
-      }
-
-      if (typeof value === "string") {
-        const decoded = decodeImageString(value);
-        if (decoded) return decoded;
-      }
-    }
-  }
-
   return null;
 }
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    const requestId = crypto.randomUUID();
-
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type,Authorization",
-          "Access-Control-Max-Age": "86400"
-        }
-      });
+    const url = new URL(request.url), requestId = crypto.randomUUID();
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: {
+      "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Methods":"GET,POST,OPTIONS", "Access-Control-Allow-Headers":"Content-Type,Authorization", "Access-Control-Max-Age":"86400"
+    }});
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+      const page = HTML.replace("__FIREBASE_CONFIG__", JSON.stringify(FIREBASE_CONFIG));
+      return new Response(page, { headers: { "Content-Type":"text/html; charset=utf-8", "Cache-Control":"no-cache", "X-Content-Type-Options":"nosniff" } });
     }
+    if (request.method === "GET" && url.pathname === "/api/config") return json({ firebase:FIREBASE_CONFIG, service:"VYRO AI", chatEngine:"Y10", imageEngine:"FLUX.1 Schnell" });
+    if (request.method === "GET" && url.pathname === "/api/health") return json({ ok:true, service:"VYRO AI", ai:!!env.AI, firebaseConfigured:!!(env.FIREBASE_API_KEY||FIREBASE_CONFIG.apiKey), chatModel:CHAT_MODEL, imageModel:IMAGE_MODEL });
 
-    if (request.method === "GET" &&
-        (url.pathname === "/" || url.pathname === "/index.html")) {
-      const page = HTML.replace(
-        "__FIREBASE_CONFIG__",
-        JSON.stringify(FIREBASE_CONFIG)
-      );
-
-      return new Response(page, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": "no-cache",
-          "X-Content-Type-Options": "nosniff"
-        }
-      });
-    }
-
-    if (request.method === "GET" && url.pathname === "/api/config") {
-      return json({
-        firebase: FIREBASE_CONFIG,
-        service: "VYRO AI"
-      });
-    }
-
-    if (request.method === "GET" && url.pathname === "/api/health") {
-      return json({
-        ok: true,
-        service: "VYRO AI",
-        ai: !!env.AI,
-        firebaseConfigured: !!(env.FIREBASE_API_KEY || FIREBASE_CONFIG.apiKey)
-      });
-    }
-
-    // -------------------- CHAT API --------------------
     if (request.method === "POST" && url.pathname === "/api/chat") {
-      logEvent(requestId, "chat.request");
-
+      logEvent(requestId,"chat.request");
       try {
-        const user = await verifyUser(request, env);
-
-        if (!user) {
-          logEvent(requestId, "chat.auth_failed");
-          return json({
-            error: "Authentication failed. Sign in with a verified email.",
-            requestId
-          }, 401);
-        }
-
-        if (!env.AI) {
-          logEvent(requestId, "chat.no_ai_binding");
-          return json({
-            error: "Cloudflare Workers AI binding named AI is missing.",
-            requestId
-          }, 500);
-        }
-
-        let body;
-        try {
-          body = await request.json();
-        } catch {
-          return json({ error: "Invalid JSON body.", requestId }, 400);
-        }
-
-        if (!Array.isArray(body.messages) || !body.messages.length) {
-          return json({ error: "Please send a message first.", requestId }, 400);
-        }
-
-        const messages = body.messages.slice(-20).map(message => ({
-          role: message.role === "assistant" ? "assistant" : "user",
-          content: String(message.content || "").slice(0, 10000)
-        }));
-
-        const result = await env.AI.run(
-          "@cf/meta/llama-3.1-8b-instruct-fast",
-          {
-            messages: [
-              {
-                role: "system",
-                content: "You are VYRO, a helpful, accurate AI assistant. Be friendly, clear, and useful. Match the user's level of detail. Never claim to have performed an action you did not perform."
-              },
-              ...messages
-            ],
-            max_tokens: 1200
-          }
-        );
-
-        const answer = result && (result.response || result.output);
-
-        if (!answer) {
-          logEvent(requestId, "chat.empty_response");
-          return json({
-            error: "The AI model returned an empty response.",
-            requestId
-          }, 502);
-        }
-
-        logEvent(requestId, "chat.success", { userId: user.id });
-
-        return json({
-          response: String(answer),
-          requestId
-        });
-      } catch (error) {
-        const details = error instanceof Error ? error.message : String(error);
-        console.error("VYRO chat error:", details);
-        logEvent(requestId, "chat.error");
-
-        return json({
-          error: "Chat request failed.",
-          details: details.slice(0, 500),
-          requestId
-        }, 502);
-      }
+        const user=await verifyUser(request,env);
+        if(!user){logEvent(requestId,"chat.auth_failed");return json({error:"Authentication failed. Sign in with a verified email.",requestId},401)}
+        if(!env.AI){logEvent(requestId,"chat.no_ai_binding");return json({error:"Cloudflare Workers AI binding named AI is missing.",requestId},500)}
+        let body;try{body=await request.json()}catch{return json({error:"Invalid JSON body.",requestId},400)}
+        if(!Array.isArray(body.messages)||!body.messages.length)return json({error:"Please send a message first.",requestId},400);
+        const messages=body.messages.slice(-20).map(m=>({role:m.role==="assistant"?"assistant":"user",content:String(m.content||"").slice(0,10000)}));
+        const result=await env.AI.run(CHAT_MODEL,{messages:[{role:"system",content:"You are Y10, the AI engine behind VYRO. Be helpful, accurate, friendly, and clear. Help with reasoning, coding, writing, learning, brainstorming, planning, and questions. Do not claim to be GPT, Claude, Gemini, or another model. Never claim to have performed an action you did not perform. If asked for technical details, be honest that VYRO uses GLM-4.7-Flash hosted through Cloudflare Workers AI."},...messages],max_tokens:1600});
+        const answer=result&&(result.response||result.output||result.text);
+        if(!answer){logEvent(requestId,"chat.empty_response");return json({error:"The AI model returned an empty response.",requestId},502)}
+        logEvent(requestId,"chat.success",{userId:user.id,model:CHAT_MODEL});return json({response:String(answer),requestId});
+      } catch(error) { const details=error instanceof Error?error.message:String(error);console.error("VYRO chat error:",details);logEvent(requestId,"chat.error");return json({error:"Chat request failed.",details:details.slice(0,500),requestId},502); }
     }
 
-    // -------------------- IMAGE API --------------------
     if (request.method === "POST" && url.pathname === "/api/image") {
-      logEvent(requestId, "image.request");
-
+      logEvent(requestId,"image.request");
       try {
-        const user = await verifyUser(request, env);
-
-        if (!user) {
-          logEvent(requestId, "image.auth_failed");
-          return json({
-            error: "Authentication failed. Sign in with a verified email.",
-            requestId
-          }, 401);
+        const user=await verifyUser(request,env);
+        if(!user){logEvent(requestId,"image.auth_failed");return json({error:"Authentication failed. Sign in with a verified email.",requestId},401)}
+        if(!env.AI){logEvent(requestId,"image.no_ai_binding");return json({error:"Cloudflare Workers AI binding named AI is missing.",requestId},500)}
+        let body;try{body=await request.json()}catch{return json({error:"Invalid JSON body.",requestId},400)}
+        const prompt=String(body.prompt||"").trim().slice(0,1500);if(!prompt)return json({error:"Enter an image prompt first.",requestId},400);
+        logEvent(requestId,"image.model_call",{model:IMAGE_MODEL,promptLength:prompt.length});
+        // Retains the existing no-new-key image engine. This is not Nano Banana 2.
+        const result=await env.AI.run(IMAGE_MODEL,{prompt,num_steps:4});
+        if(result instanceof Response){
+          if(!result.ok){const details=await result.text().catch(()=>"");logEvent(requestId,"image.model_http_error",{status:result.status});return json({error:"The image model returned an error.",details:details.slice(0,700),requestId},502)}
+          const contentType=(result.headers.get("Content-Type")||"").toLowerCase();
+          if(contentType.startsWith("image/"))return imageResponse(await result.arrayBuffer(),contentType);
+          if(contentType.includes("application/json")){const data=await result.json().catch(()=>({})),image=extractImage(data);if(image&&image.bytes.length)return imageResponse(image.bytes,image.mime);return json({error:"The image model returned JSON without image data.",requestId},502)}
+          const text=await result.text().catch(()=>""),decoded=decodeImageString(text);if(decoded)return imageResponse(decoded.bytes,decoded.mime);return json({error:"Unexpected response from the image model.",details:text.slice(0,500),requestId},502);
         }
-
-        if (!env.AI) {
-          logEvent(requestId, "image.no_ai_binding");
-          return json({
-            error: "Cloudflare Workers AI binding named AI is missing.",
-            requestId
-          }, 500);
-        }
-
-        let body;
-        try {
-          body = await request.json();
-        } catch {
-          return json({ error: "Invalid JSON body.", requestId }, 400);
-        }
-
-        const prompt = String(body.prompt || "").trim().slice(0, 1500);
-
-        if (!prompt) {
-          return json({ error: "Enter an image prompt first.", requestId }, 400);
-        }
-
-        logEvent(requestId, "image.model_call", {
-          model: "@cf/black-forest-labs/flux-1-schnell",
-          promptLength: prompt.length
-        });
-
-        const result = await env.AI.run(
-          "@cf/black-forest-labs/flux-1-schnell",
-          {
-            prompt,
-            num_steps: 4
-          }
-        );
-
-        if (result instanceof Response) {
-          if (!result.ok) {
-            const details = await result.text().catch(() => "");
-            logEvent(requestId, "image.model_http_error", {
-              status: result.status
-            });
-
-            return json({
-              error: "The image model returned an error.",
-              details: details.slice(0, 700),
-              requestId
-            }, 502);
-          }
-
-          const contentType = (result.headers.get("Content-Type") || "").toLowerCase();
-
-          if (contentType.startsWith("image/")) {
-            return imageResponse(await result.arrayBuffer(), contentType);
-          }
-
-          if (contentType.includes("application/json")) {
-            const data = await result.json().catch(() => ({}));
-            const image = extractImage(data);
-
-            if (image) return imageResponse(image.bytes, image.mime);
-
-            return json({
-              error: "The image model returned JSON without image data.",
-              requestId
-            }, 502);
-          }
-
-          const text = await result.text().catch(() => "");
-          const decoded = decodeImageString(text);
-
-          if (decoded) return imageResponse(decoded.bytes, decoded.mime);
-
-          return json({
-            error: "Unexpected response from the image model.",
-            details: text.slice(0, 500),
-            requestId
-          }, 502);
-        }
-
-        const image = extractImage(result);
-
-        if (image && image.bytes.length) {
-          logEvent(requestId, "image.success", { userId: user.id });
-          return imageResponse(image.bytes, image.mime);
-        }
-
-        logEvent(requestId, "image.unexpected_result", {
-          resultType: typeof result,
-          keys: result && typeof result === "object"
-            ? Object.keys(result).slice(0, 15)
-            : []
-        });
-
-        return json({
-          error: "The image model returned an unsupported response.",
-          requestId
-        }, 502);
-      } catch (error) {
-        const details = error instanceof Error ? error.message : String(error);
-        console.error("VYRO image error:", details);
-        logEvent(requestId, "image.error");
-
-        return json({
-          error: "Image generation failed.",
-          details: details.slice(0, 500),
-          requestId
-        }, 502);
-      }
+        const image=extractImage(result);
+        if(image&&image.bytes.length){logEvent(requestId,"image.success",{userId:user.id,model:IMAGE_MODEL});return imageResponse(image.bytes,image.mime)}
+        logEvent(requestId,"image.unexpected_result",{resultType:typeof result,keys:result&&typeof result==="object"?Object.keys(result).slice(0,15):[]});return json({error:"The image model returned an unsupported response.",requestId},502);
+      } catch(error) {const details=error instanceof Error?error.message:String(error);console.error("VYRO image error:",details);logEvent(requestId,"image.error");return json({error:"Image generation failed.",details:details.slice(0,500),requestId},502)}
     }
-
-    return json({ error: "Not found", requestId }, 404);
+    return json({error:"Not found",requestId},404);
   }
 };
